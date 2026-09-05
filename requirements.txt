@@ -1,0 +1,17 @@
+# Voice Clone Service - runtime dependencies
+# Pinned to the exact versions verified in the local venv (pip freeze).
+# Dev/test deps (pytest, pytest-asyncio) are intentionally NOT here;
+# they live in the local venv only.
+
+fastapi==0.141.1
+uvicorn[standard]==0.52.4
+pydantic==2.13.5
+pydantic-settings==2.15.0
+python-multipart==0.0.32
+httpx==0.28.1
+onnxruntime==1.29.0
+sherpa-onnx==1.13.7
+soundfile==0.14.0
+numpy==2.5.2
+pydub==0.25.1
+python-dotenv==1.2.3

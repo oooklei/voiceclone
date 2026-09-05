@@ -1,0 +1,32 @@
+# Voice Clone Service - dev compose
+# Template: D:\care_tts_service_deploy\docker-compose.yml
+#
+# Usage:
+#   copy .env.example .env   (fill in real values at deploy time)
+#   docker compose up -d --build
+#   curl http://127.0.0.1:8021/health
+#
+# data/ and models/ are bind-mounted volumes: models are downloaded by
+# scripts/download_models.* on the host, never baked into the image.
+
+version: "3.8"
+
+services:
+  voiceclone:
+    build: .
+    image: voiceclone:dev
+    container_name: voiceclone-dev
+    ports:
+      - "${PORT:-8021}:8021"
+    volumes:
+      - ./data:/app/data
+      - ./models:/app/models
+    env_file:
+      - .env
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8021/health')"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
