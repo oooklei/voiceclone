@@ -1,0 +1,32 @@
+# Voice Clone Service - 1.9 production compose
+# Template: D:\care_asr_service_deploy\docker-compose.gxy.yml
+#
+# Deploy on 192.168.1.9 (flattalk network). See README.md for the full
+# six-step deployment procedure.
+
+services:
+  gxy-voiceclone:
+    build: .
+    image: gxy-voiceclone:latest
+    container_name: gxy-voiceclone
+    restart: unless-stopped
+    ports:
+      - "8021:8021"
+    env_file:
+      - .env
+    volumes:
+      - ./data:/app/data
+      - ./models:/app/models
+    networks:
+      - flattalk-net
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8021/health', timeout=3)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+networks:
+  flattalk-net:
+    external: true
+    name: flattalk_flattalk-network
