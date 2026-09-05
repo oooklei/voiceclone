@@ -11,6 +11,7 @@ const els = {
   voiceName: $("voiceName"),
   providerSel: $("providerSel"),
   micBtn: $("micBtn"),
+  sysBtn: $("sysBtn"),
   timer: $("timer"),
   recStatus: $("recStatus"),
   fileInput: $("fileInput"),
@@ -35,10 +36,12 @@ const els = {
 
 const MAX_RECORD_MS = 15000; // 15 秒自动停止
 const POLL_MS = 10000; // 训练状态轮询间隔
+const SOURCE_LABEL = { mic: "麦克风", system: "系统音频" };
 
 let mediaRecorder = null;
 let audioChunks = [];
 let isRecording = false;
+let recordingSource = null; // 'mic' | 'system'
 let timerId = null;
 let recSeconds = 0;
 let pollTimers = new Map(); // voiceId -> intervalId
@@ -103,21 +106,27 @@ function statusBadge(status) {
 
 /* ------------------------------------------------------------ recording */
 
-async function startRecording() {
+async function startRecording(source) {
   if (isRecording) return; // 防重入：双击/快速点击不会泄漏第二个 interval
   if (!window.isSecureContext) {
     setStatus(
       els.recStatus,
-      "麦克风仅在 HTTPS 下可用：请改用 https://192.168.1.9:8021 访问（首次需接受自签名证书警告），或改用文件上传",
+      "麦克风/系统音频仅在 HTTPS 下可用：请改用 https://192.168.1.9:8021 访问（首次需接受自签名证书警告），或改用文件上传",
       true,
     );
-    log("非安全上下文（HTTP），浏览器拒绝 getUserMedia");
+    log("非安全上下文（HTTP），浏览器拒绝录音");
     return;
   }
   try {
-    const stream = await navigator.mediaDevices.getUserMedia({
-      audio: { echoCancellation: true, noiseSuppression: true },
-    });
+    let stream;
+    if (source === "system") {
+      setStatus(els.recStatus, "请在弹出的窗口中选择要录制的音频来源（标签页/窗口/系统声音）", false);
+      stream = await getSystemAudioStream();
+    } else {
+      stream = await navigator.mediaDevices.getUserMedia({
+        audio: { echoCancellation: true, noiseSuppression: true },
+      });
+    }
     mediaRecorder = new MediaRecorder(stream);
     audioChunks = [];
     mediaRecorder.ondataavailable = (e) => {
@@ -130,33 +139,59 @@ async function startRecording() {
       const blob = new Blob(audioChunks, { type: mediaRecorder.mimeType || "audio/webm" });
       els.fileInput.files = null;
       els.fileInput._recordedBlob = blob;
-      setStatus(els.recStatus, `已录制 ${fmtTime(recSeconds)}，点击「创建并训练」提交`, false);
-      log(`录音完成：${(blob.size / 1024).toFixed(1)} KB`);
+      setStatus(els.recStatus, `已录制 ${fmtTime(recSeconds)}（${SOURCE_LABEL[source]}），点击「新建音色」提交`, false);
+      log(`录音完成（${SOURCE_LABEL[source]}）：${(blob.size / 1024).toFixed(1)} KB`);
     };
     mediaRecorder.start();
     isRecording = true;
+    recordingSource = source;
     els.micBtn.classList.add("recording");
+    els.sysBtn.classList.add("recording");
     recSeconds = 0;
     els.timer.textContent = fmtTime(0);
-    setStatus(els.recStatus, "录音中... 15 秒自动停止", false);
+    setStatus(els.recStatus, `${SOURCE_LABEL[source]}录制中... 15 秒自动停止`, false);
     timerId = setInterval(() => {
       recSeconds++;
       els.timer.textContent = fmtTime(recSeconds);
       if (recSeconds * 1000 >= MAX_RECORD_MS) stopRecording();
     }, 1000);
-    log("开始录音");
+    log(`开始录制（${SOURCE_LABEL[source]}）`);
   } catch (err) {
-    setStatus(els.recStatus, "麦克风访问失败，请检查权限或改用文件上传", true);
-    log("麦克风错误: " + err.message);
+    setStatus(els.recStatus, `${SOURCE_LABEL[source]}录制失败：${err.message}`, true);
+    log(`${SOURCE_LABEL[source]}录制错误: ${err.message}`);
+  }
+}
+
+async function getSystemAudioStream() {
+  // Chrome 124+：仅音频的屏幕捕获选择器（displaySurface: 'audio'）
+  try {
+    const stream = await navigator.mediaDevices.getDisplayMedia({
+      video: { displaySurface: "audio" },
+      audio: true,
+    });
+    stream.getVideoTracks().forEach((t) => t.stop());
+    return stream;
+  } catch (err) {
+    // 用户取消选择器：直接抛出，不弹第二个选择器
+    if (err.name === "NotAllowedError" || err.name === "AbortError") throw err;
+    // 旧浏览器回退：完整屏幕捕获后丢弃视频轨
+    const stream = await navigator.mediaDevices.getDisplayMedia({
+      video: true,
+      audio: true,
+    });
+    stream.getVideoTracks().forEach((t) => t.stop());
+    return stream;
   }
 }
 
 function stopRecording() {
   if (!isRecording || !mediaRecorder) return;
   isRecording = false;
+  recordingSource = null;
   clearInterval(timerId);
   timerId = null;
   els.micBtn.classList.remove("recording");
+  els.sysBtn.classList.remove("recording");
   try {
     mediaRecorder.stop();
   } catch (_) {
@@ -166,7 +201,11 @@ function stopRecording() {
 
 els.micBtn.addEventListener("click", () => {
   if (isRecording) stopRecording();
-  else startRecording();
+  else startRecording("mic");
+});
+els.sysBtn.addEventListener("click", () => {
+  if (isRecording) stopRecording();
+  else startRecording("system");
 });
 
 /* -------------------------------------------------------------- create */

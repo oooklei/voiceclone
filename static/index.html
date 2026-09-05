@@ -29,7 +29,10 @@
       </select>
     </div>
 
-    <button class="mic-btn" id="micBtn" title="点击录音（最长 15 秒）">&#127908;</button>
+    <div class="mic-row">
+      <button class="mic-btn" id="micBtn" title="点击录音（最长 15 秒）">&#127908;</button>
+      <button class="mic-btn" id="sysBtn" title="录制系统音频（选择正在播放音频的标签页/窗口）">&#128266;</button>
+    </div>
     <div class="timer" id="timer">00:00</div>
     <div class="status" id="recStatus">点击话筒录音，或上传音频文件</div>
 
@@ -47,7 +50,7 @@
       <button id="createBtn">新建音色</button>
     </div>
     <div class="log" id="log"></div>
-    <div class="hint">录音超过 15 秒会自动停止；需允许浏览器麦克风权限</div>
+    <div class="hint">录音超过 15 秒会自动停止；麦克风需允许浏览器权限，系统音频需在弹出的窗口中选择来源</div>
   </div>
 
   <!-- 右：音色列表 + 试听 -->

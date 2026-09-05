@@ -17,6 +17,8 @@ h1{font-size:1.5rem;margin-bottom:.3rem;background:linear-gradient(135deg,#38bdf
 .field textarea{resize:vertical;min-height:52px}
 
 .mic-btn{width:96px;height:96px;border-radius:50%;border:3px solid #38bdf8;background:rgba(56,189,248,.1);color:#38bdf8;font-size:2.4rem;cursor:pointer;transition:all .2s;display:flex;align-items:center;justify-content:center;margin:.75rem auto}
+.mic-row{display:flex;gap:1rem;justify-content:center;align-items:center;margin:.75rem auto}
+.mic-row .mic-btn{margin:0}
 .mic-btn:hover{background:rgba(56,189,248,.2);transform:scale(1.05)}
 .mic-btn.recording{border-color:#f87171;background:rgba(248,113,113,.15);color:#f87171;animation:pulse 1.2s infinite}
 @keyframes pulse{0%,100%{box-shadow:0 0 0 0 rgba(248,113,113,.4)}50%{box-shadow:0 0 0 18px rgba(248,113,113,0)}}
