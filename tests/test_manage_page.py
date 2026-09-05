@@ -47,6 +47,7 @@ async def test_root_serves_management_spa(client) -> None:
     assert "Voice Clone 管理" in html
     assert "创建音色" in html
     assert "试听" in html
+    assert "参考音频文字稿" in html
     assert "/static/app.js" in html
     assert "/static/style.css" in html
 
@@ -59,6 +60,7 @@ async def test_static_app_js_served(client) -> None:
     assert "speed_ratio" in resp.text
     assert "loudness_ratio" in resp.text
     assert "pitch_ratio" in resp.text
+    assert "reference_text" in resp.text
     assert "/api/v1/voices" in resp.text
     assert "/api/v1/tts/speak" in resp.text
 

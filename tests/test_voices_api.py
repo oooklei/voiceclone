@@ -58,11 +58,20 @@ async def client(data_dir):
         yield c
 
 
-async def _create(client, wav: bytes | None = None, provider: str = "cloud", name: str = "v1"):
+async def _create(
+    client,
+    wav: bytes | None = None,
+    provider: str = "cloud",
+    name: str = "v1",
+    reference_text: str = "",
+):
     wav = _make_wav(8.0) if wav is None else wav
+    data = {"name": name, "provider": provider}
+    if reference_text:
+        data["reference_text"] = reference_text
     return await client.post(
         "/api/v1/voices",
-        data={"name": name, "provider": provider},
+        data=data,
         files={"file": ("ref.wav", wav, "audio/wav")},
     )
 
@@ -107,12 +116,15 @@ async def test_happy_path_cloud_lifecycle(client, data_dir) -> None:
 
 @pytest.mark.asyncio
 async def test_create_local_voice_slices_prompt(client, data_dir) -> None:
-    resp = await _create(client, provider="local")
+    resp = await _create(client, provider="local", reference_text="这是一段参考音频。")
     assert resp.status_code == 201, resp.text
     voice = resp.json()
     assert voice["status"] == "active"
+    assert voice["reference_text"] == "这是一段参考音频。"
     prompt = Path(voice["local_prompt_path"])
     assert prompt.is_file()
+    # ZipVoice needs the transcript sidecar next to the prompt wav
+    assert prompt.with_suffix(".txt").read_text(encoding="utf-8") == "这是一段参考音频。"
     with wave.open(str(prompt), "rb") as w:
         assert w.getframerate() == 24000
         assert w.getnchannels() == 1
@@ -121,8 +133,20 @@ async def test_create_local_voice_slices_prompt(client, data_dir) -> None:
 
 
 @pytest.mark.asyncio
+async def test_create_local_without_reference_text_rejected(client) -> None:
+    resp = await _create(client, provider="local")
+    assert resp.status_code == 422
+    assert "reference_text" in resp.json()["detail"]
+
+
+@pytest.mark.asyncio
 async def test_local_quiet_head_flags_needs_review(client) -> None:
-    resp = await _create(client, wav=_make_wav(6.0, amplitude=0.0), provider="local")
+    resp = await _create(
+        client,
+        wav=_make_wav(6.0, amplitude=0.0),
+        provider="local",
+        reference_text="静音参考。",
+    )
     assert resp.status_code == 201, resp.text
     assert resp.json()["needs_review"] is True
 
@@ -130,7 +154,7 @@ async def test_local_quiet_head_flags_needs_review(client) -> None:
 @pytest.mark.asyncio
 async def test_list_and_filter_by_provider(client) -> None:
     await _create(client, name="c1")
-    await _create(client, provider="local", name="l1")
+    await _create(client, provider="local", name="l1", reference_text="本地参考。")
 
     all_voices = await client.get("/api/v1/voices")
     assert all_voices.status_code == 200
@@ -211,12 +235,14 @@ async def test_unknown_voice_404(client) -> None:
 
 @pytest.mark.asyncio
 async def test_delete_removes_prompt_file_for_local(client, data_dir) -> None:
-    voice = (await _create(client, provider="local")).json()
+    voice = (await _create(client, provider="local", reference_text="删除测试。")).json()
     prompt = Path(voice["local_prompt_path"])
     assert prompt.is_file()
+    assert prompt.with_suffix(".txt").is_file()  # transcript sidecar
     resp = await client.delete(f"/api/v1/voices/{voice['id']}")
     assert resp.status_code == 204
     assert not prompt.exists()
+    assert not prompt.with_suffix(".txt").exists()
     assert not (data_dir / "voices" / voice["id"]).exists()
 
 

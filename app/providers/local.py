@@ -101,6 +101,12 @@ class LocalZipVoiceProvider(CloneProvider):
         self._prompts_dir.mkdir(parents=True, exist_ok=True)
         prompt_path = self._prompts_dir / f"{profile.voice_id}.wav"
         shutil.copyfile(profile.reference_path, prompt_path)
+        # ZipVoice requires the transcript of the reference audio; persist it
+        # as a sidecar so _load_prompt can pick it up at synthesis time.
+        if profile.reference_text:
+            prompt_path.with_suffix(".txt").write_text(
+                profile.reference_text.strip(), encoding="utf-8"
+            )
         return str(prompt_path)
 
     def poll_status(self, provider_ref: str) -> VoiceStatus:

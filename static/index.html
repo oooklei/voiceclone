@@ -37,6 +37,11 @@
       <input id="fileInput" type="file" accept="audio/*">
     </div>
 
+    <div class="field" id="refTextField" style="display:none">
+      <label for="refText">参考音频文字稿（本地引擎必填）</label>
+      <textarea id="refText" rows="2" maxlength="2000" placeholder="输入参考音频中朗读的文字内容，用于本地克隆..."></textarea>
+    </div>
+
     <div class="controls">
       <button id="createBtn">创建并训练</button>
     </div>

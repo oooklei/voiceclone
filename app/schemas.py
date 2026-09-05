@@ -27,6 +27,9 @@ class VoiceCreate(StrictModel):
     reference_path: str = ""
     local_prompt_path: str = ""
     cloud_speaker_id: str = ""
+    # Transcript of the reference audio; required by the local ZipVoice
+    # engine (zero-shot cloning needs the reference text).
+    reference_text: str = ""
     speed_ratio: float = Field(default=1.0, ge=0.1, le=2.0)
     loudness_ratio: float = Field(default=1.0, ge=0.5, le=2.0)
     pitch_ratio: float = Field(default=1.0, ge=0.1, le=2.0)
@@ -40,6 +43,7 @@ class VoiceUpdate(StrictModel):
     reference_path: str | None = None
     local_prompt_path: str | None = None
     cloud_speaker_id: str | None = None
+    reference_text: str | None = None
     speed_ratio: float | None = Field(default=None, ge=0.1, le=2.0)
     loudness_ratio: float | None = Field(default=None, ge=0.5, le=2.0)
     pitch_ratio: float | None = Field(default=None, ge=0.1, le=2.0)
@@ -55,6 +59,7 @@ class VoiceOut(StrictModel):
     reference_path: str = ""
     local_prompt_path: str = ""
     cloud_speaker_id: str = ""
+    reference_text: str = ""
     speed_ratio: float = 1.0
     loudness_ratio: float = 1.0
     pitch_ratio: float = 1.0

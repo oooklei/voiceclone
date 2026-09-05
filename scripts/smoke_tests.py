@@ -301,7 +301,15 @@ class SmokeRunner:
         """Real ZipVoice engine: create local voice, speak, verify wav."""
         with httpx.Client(base_url=self.base_url, timeout=120.0) as client:
             files = {"file": ("ref.wav", _make_reference_wav(), "audio/wav")}
-            r = client.post("/api/v1/voices", data={"name": "smoke-local", "provider": "local"}, files=files)
+            r = client.post(
+                "/api/v1/voices",
+                data={
+                    "name": "smoke-local",
+                    "provider": "local",
+                    "reference_text": "这是一段用于克隆的参考音频。",
+                },
+                files=files,
+            )
             self.check("create local voice -> 201", r.status_code == 201, f"got {r.status_code}")
             voice = r.json()
             voice_id = voice["id"]
@@ -312,9 +320,8 @@ class SmokeRunner:
                 json={"voice_id": voice_id, "text": "本地模型克隆语音冒烟测试。"},
             )
             self.check("local speak -> 200", r.status_code == 200, f"got {r.status_code}")
-            self.check_raises(
+            self.check_no_raise(
                 "local speak returns playable wav",
-                AssertionError,
                 lambda: _assert_wav(r.content, "local speak"),
             )
 
@@ -344,9 +351,8 @@ class SmokeRunner:
                 json={"voice_id": voice_id, "text": "云端克隆语音冒烟测试。"},
             )
             self.check("cloud speak -> 200", r.status_code == 200, f"got {r.status_code}")
-            self.check_raises(
+            self.check_no_raise(
                 "cloud speak returns playable wav",
-                AssertionError,
                 lambda: _assert_wav(r.content, "cloud speak"),
             )
 

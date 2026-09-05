@@ -77,13 +77,19 @@ async def create_voice(
     name: str = Form(..., min_length=1, max_length=100),
     file: UploadFile = File(...),
     provider: VoiceProvider = Form("cloud"),
+    reference_text: str = Form("", max_length=2000),
     repo: VoiceRepository = Depends(get_repo),
 ) -> VoiceOut:
     audio = await file.read()
     if not audio:
         raise HTTPException(status_code=422, detail="uploaded audio file is empty")
+    if provider == "local" and not reference_text.strip():
+        raise HTTPException(
+            status_code=422,
+            detail="local engine requires the transcript of the reference audio (reference_text)",
+        )
 
-    voice = repo.create(VoiceCreate(name=name, provider=provider))
+    voice = repo.create(VoiceCreate(name=name, provider=provider, reference_text=reference_text.strip()))
     voice_dir = DATA_DIR / "voices" / voice.id
     voice_dir.mkdir(parents=True, exist_ok=True)
 
@@ -101,7 +107,12 @@ async def create_voice(
         if provider == "local":
             slice_path, needs_review = _slice_prompt(reference_path, voice_dir / "prompt_slice.wav")
             local_prompt_path = get_provider("local").train(
-                VoiceProfile(voice_id=voice.id, name=name, reference_path=slice_path)
+                VoiceProfile(
+                    voice_id=voice.id,
+                    name=name,
+                    reference_path=slice_path,
+                    reference_text=reference_text,
+                )
             )
         else:
             _validate_cloud_reference(reference_path, audio)
@@ -125,6 +136,7 @@ async def create_voice(
             reference_path=str(reference_path),
             local_prompt_path=local_prompt_path,
             cloud_speaker_id=cloud_speaker_id,
+            reference_text=reference_text.strip(),
         ),
     )
     assert updated is not None  # row was just created
@@ -176,7 +188,12 @@ async def retrain_voice(voice_id: str, repo: VoiceRepository = Depends(get_repo)
     if not reference.is_file():
         raise HTTPException(status_code=422, detail="reference audio missing on disk")
 
-    profile = VoiceProfile(voice_id=voice.id, name=voice.name, reference_path=reference)
+    profile = VoiceProfile(
+        voice_id=voice.id,
+        name=voice.name,
+        reference_path=reference,
+        reference_text=voice.reference_text,
+    )
     try:
         if voice.provider == "local":
             prompt_path = get_provider("local").train(profile)
@@ -222,7 +239,9 @@ async def delete_voice(voice_id: str, repo: VoiceRepository = Depends(get_repo))
     repo.delete(voice_id)
     shutil.rmtree(DATA_DIR / "voices" / voice_id, ignore_errors=True)
     if voice.local_prompt_path:
-        Path(voice.local_prompt_path).unlink(missing_ok=True)
+        prompt = Path(voice.local_prompt_path)
+        prompt.unlink(missing_ok=True)
+        prompt.with_suffix(".txt").unlink(missing_ok=True)
     return Response(status_code=204)
 
 

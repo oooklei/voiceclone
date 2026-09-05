@@ -22,19 +22,24 @@ def repo(tmp_path) -> VoiceRepository:
 
 
 def test_crud_smoke(repo: VoiceRepository) -> None:
-    created = repo.create(VoiceCreate(name="smoke", provider="cloud"))
+    created = repo.create(
+        VoiceCreate(name="smoke", provider="cloud", reference_text="参考文字稿。")
+    )
     assert created.status == "draft"
     assert created.provider == "cloud"
     assert created.speed_ratio == 1.0
+    assert created.reference_text == "参考文字稿。"
 
     fetched = repo.get(created.id)
     assert fetched is not None
     assert fetched.name == "smoke"
+    assert fetched.reference_text == "参考文字稿。"
 
     updated = repo.update(created.id, VoiceUpdate(speed_ratio=0.9, name="smoke2"))
     assert updated is not None
     assert updated.speed_ratio == 0.9
     assert updated.name == "smoke2"
+    assert updated.reference_text == "参考文字稿。"
 
     enabled = repo.enable(created.id)
     assert enabled is not None
@@ -93,3 +98,36 @@ def test_update_and_delete_missing_id(repo: VoiceRepository) -> None:
     assert repo.enable("missing") is None
     assert repo.disable("missing") is None
     assert repo.delete("missing") is False
+
+
+def test_migration_adds_reference_text_column(tmp_path) -> None:
+    """DBs created before the transcript feature must be upgraded in place."""
+    db = tmp_path / "voices.db"
+    with sqlite3.connect(str(db)) as conn:
+        conn.execute(
+            """
+            CREATE TABLE voices (
+                id TEXT PRIMARY KEY,
+                name TEXT NOT NULL,
+                provider TEXT NOT NULL,
+                status TEXT NOT NULL DEFAULT 'draft',
+                reference_path TEXT,
+                local_prompt_path TEXT,
+                cloud_speaker_id TEXT,
+                speed_ratio REAL DEFAULT 1.0,
+                loudness_ratio REAL DEFAULT 1.0,
+                pitch_ratio REAL DEFAULT 1.0,
+                created_at TEXT,
+                updated_at TEXT
+            )
+            """
+        )
+    repo = VoiceRepository(db_path=str(db))
+    with repo._connect() as conn:
+        cols = {row["name"] for row in conn.execute("PRAGMA table_info(voices)")}
+    assert "reference_text" in cols
+    # the new column is usable end-to-end
+    created = repo.create(
+        VoiceCreate(name="mig", provider="local", reference_text="迁移后可用。")
+    )
+    assert created.reference_text == "迁移后可用。"

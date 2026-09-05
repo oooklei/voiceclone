@@ -24,6 +24,7 @@ CREATE TABLE IF NOT EXISTS voices (
     reference_path TEXT,
     local_prompt_path TEXT,
     cloud_speaker_id TEXT,
+    reference_text TEXT,
     speed_ratio REAL DEFAULT 1.0,
     loudness_ratio REAL DEFAULT 1.0,
     pitch_ratio REAL DEFAULT 1.0,
@@ -52,6 +53,7 @@ def _row_to_voice(row: sqlite3.Row) -> VoiceOut:
         reference_path=row["reference_path"] or "",
         local_prompt_path=row["local_prompt_path"] or "",
         cloud_speaker_id=row["cloud_speaker_id"] or "",
+        reference_text=row["reference_text"] or "",
         speed_ratio=row["speed_ratio"],
         loudness_ratio=row["loudness_ratio"],
         pitch_ratio=row["pitch_ratio"],
@@ -76,6 +78,12 @@ class VoiceRepository:
     def _init_schema(self) -> None:
         with self._connect() as conn:
             conn.execute(SCHEMA)
+            # Lightweight migration: add reference_text to DBs created before
+            # the transcript feature landed (CREATE TABLE IF NOT EXISTS does
+            # not alter existing tables).
+            cols = {row["name"] for row in conn.execute("PRAGMA table_info(voices)")}
+            if "reference_text" not in cols:
+                conn.execute("ALTER TABLE voices ADD COLUMN reference_text TEXT")
 
     def create(self, payload: VoiceCreate) -> VoiceOut:
         now = _now()
@@ -86,9 +94,10 @@ class VoiceRepository:
                 INSERT INTO voices (
                     id, name, provider, status,
                     reference_path, local_prompt_path, cloud_speaker_id,
+                    reference_text,
                     speed_ratio, loudness_ratio, pitch_ratio,
                     created_at, updated_at
-                ) VALUES (?, ?, ?, 'draft', ?, ?, ?, ?, ?, ?, ?, ?)
+                ) VALUES (?, ?, ?, 'draft', ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     voice_id,
@@ -97,6 +106,7 @@ class VoiceRepository:
                     payload.reference_path,
                     payload.local_prompt_path,
                     payload.cloud_speaker_id,
+                    payload.reference_text,
                     payload.speed_ratio,
                     payload.loudness_ratio,
                     payload.pitch_ratio,

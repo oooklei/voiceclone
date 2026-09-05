@@ -115,11 +115,27 @@ def test_synthesize_with_partial_model_still_raises(provider, monkeypatch, tmp_p
 
 def test_train_persists_prompt_and_returns_path(provider, tmp_path):
     ref = _make_wav(tmp_path / "ref.wav", seconds=2.0)
-    profile = VoiceProfile(voice_id="v-123", name="测试音色", reference_path=ref)
+    profile = VoiceProfile(
+        voice_id="v-123",
+        name="测试音色",
+        reference_path=ref,
+        reference_text="这是一段参考音频。",
+    )
     provider_ref = provider.train(profile)
     prompt_path = Path(provider_ref)
     assert prompt_path.is_file()
     assert prompt_path.read_bytes() == ref.read_bytes()
+    # ZipVoice requires the transcript sidecar next to the prompt wav
+    assert prompt_path.with_suffix(".txt").read_text(encoding="utf-8") == "这是一段参考音频。"
+
+
+def test_train_without_reference_text_writes_no_sidecar(provider, tmp_path):
+    ref = _make_wav(tmp_path / "ref.wav", seconds=2.0)
+    profile = VoiceProfile(voice_id="v-124", name="无文字稿", reference_path=ref)
+    provider_ref = provider.train(profile)
+    prompt_path = Path(provider_ref)
+    assert prompt_path.is_file()
+    assert not prompt_path.with_suffix(".txt").exists()
 
 
 def test_train_missing_reference_raises(provider, tmp_path):

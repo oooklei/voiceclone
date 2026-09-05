@@ -14,6 +14,8 @@ const els = {
   timer: $("timer"),
   recStatus: $("recStatus"),
   fileInput: $("fileInput"),
+  refText: $("refText"),
+  refTextField: $("refTextField"),
   createBtn: $("createBtn"),
   log: $("log"),
   voiceList: $("voiceList"),
@@ -174,11 +176,17 @@ async function createVoice() {
     setStatus(els.recStatus, "音频文件为空，请重新录音或选择文件", true);
     return;
   }
+  const referenceText = els.refText.value.trim();
+  if (provider === "local" && !referenceText) {
+    setStatus(els.recStatus, "本地引擎需要填写参考音频文字稿", true);
+    return;
+  }
 
   const form = new FormData();
   form.append("name", name);
   form.append("provider", provider);
   form.append("file", audio, recorded ? "recording.webm" : file.name);
+  if (referenceText) form.append("reference_text", referenceText);
 
   els.createBtn.disabled = true;
   setStatus(els.recStatus, "上传中...", false);
@@ -201,6 +209,13 @@ async function createVoice() {
 }
 
 els.createBtn.addEventListener("click", createVoice);
+
+/* 本地引擎需要参考音频文字稿：切换引擎时显示/隐藏输入框 */
+function syncRefTextField() {
+  const isLocal = els.providerSel.value === "local";
+  els.refTextField.style.display = isLocal ? "" : "none";
+}
+els.providerSel.addEventListener("change", syncRefTextField);
 
 /* ---------------------------------------------------------------- list */
 
@@ -430,4 +445,5 @@ els.stopBtn.addEventListener("click", () => {
 /* ---------------------------------------------------------------- init */
 
 els.refreshBtn.addEventListener("click", loadVoices);
+syncRefTextField();
 loadVoices();

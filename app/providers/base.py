@@ -48,6 +48,7 @@ class VoiceProfile:
     name: str
     reference_path: Path
     language: str = "zh"
+    reference_text: str = ""
 
 
 # Raw encoded audio chunks (wav/mp3 bytes) streamed to the caller.
