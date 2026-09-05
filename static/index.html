@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Voice Clone 管理</title>
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<h1>Voice Clone 管理</h1>
+<p class="subtitle">人声克隆播报服务 · 录音/上传参考音频 → 训练 → 调参试听</p>
+
+<div class="layout">
+  <!-- 左：创建音色 -->
+  <div class="panel left">
+    <div class="panel-label"><span>创建音色</span></div>
+
+    <div class="field">
+      <label for="voiceName">音色名称</label>
+      <input id="voiceName" type="text" maxlength="100" placeholder="例如：主播小张">
+    </div>
+
+    <div class="field">
+      <label for="providerSel">引擎</label>
+      <select id="providerSel">
+        <option value="cloud" selected>云端 ICL（火山引擎）</option>
+        <option value="local">本地 ZipVoice（CPU）</option>
+      </select>
+    </div>
+
+    <button class="mic-btn" id="micBtn" title="点击录音（最长 15 秒）">&#127908;</button>
+    <div class="timer" id="timer">00:00</div>
+    <div class="status" id="recStatus">点击话筒录音，或上传音频文件</div>
+
+    <div class="field">
+      <label for="fileInput">或上传参考音频（wav/mp3，5–15 秒最佳）</label>
+      <input id="fileInput" type="file" accept="audio/*">
+    </div>
+
+    <div class="controls">
+      <button id="createBtn">创建并训练</button>
+    </div>
+    <div class="log" id="log"></div>
+    <div class="hint">录音超过 15 秒会自动停止；需允许浏览器麦克风权限</div>
+  </div>
+
+  <!-- 右：音色列表 + 试听 -->
+  <div class="panel right">
+    <div class="panel-label">
+      <span>音色列表</span>
+      <button id="refreshBtn">刷新</button>
+    </div>
+    <div id="voiceList" class="voice-list"></div>
+
+    <div class="panel-label" style="margin-top:1rem"><span>试听</span></div>
+    <div class="field">
+      <label for="previewText">试听文本</label>
+      <textarea id="previewText" rows="2" maxlength="5000" placeholder="输入要合成的文本...">你好，我是克隆音色，欢迎使用语音播报服务。</textarea>
+    </div>
+
+    <div class="sliders">
+      <div class="slider-row">
+        <label>语速 <span id="speedVal">1.00</span></label>
+        <input type="range" id="speedRatio" min="0.1" max="2.0" step="0.05" value="1.0">
+      </div>
+      <div class="slider-row">
+        <label>音量 <span id="loudnessVal">1.00</span></label>
+        <input type="range" id="loudnessRatio" min="0.5" max="2.0" step="0.05" value="1.0">
+      </div>
+      <div class="slider-row">
+        <label>音调 <span id="pitchVal">1.00</span></label>
+        <input type="range" id="pitchRatio" min="0.1" max="2.0" step="0.05" value="1.0">
+      </div>
+    </div>
+
+    <div class="controls">
+      <button id="previewBtn">试听</button>
+      <button id="stopBtn" disabled>停止</button>
+    </div>
+    <div class="status" id="previewStatus"></div>
+    <audio id="player" controls style="width:100%;margin-top:.5rem;display:none"></audio>
+  </div>
+</div>
+
+<script src="/static/app.js"></script>
+</body>
+</html>

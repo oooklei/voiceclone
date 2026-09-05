@@ -1,0 +1,62 @@
+/* Voice Clone 管理页面样式（无构建链，纯 CSS）。 */
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"PingFang SC","Microsoft YaHei",sans-serif;background:#0f172a;color:#e2e8f0;min-height:100vh;display:flex;flex-direction:column;align-items:center;padding:2rem 1rem}
+h1{font-size:1.5rem;margin-bottom:.3rem;background:linear-gradient(135deg,#38bdf8,#818cf8);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.subtitle{color:#94a3b8;margin-bottom:1.5rem;font-size:.9rem}
+.layout{display:flex;gap:1.5rem;width:100%;max-width:960px;align-items:stretch;flex-wrap:wrap}
+.panel{background:#1e293b;border-radius:1rem;padding:1.75rem;flex:1;min-width:320px;box-shadow:0 4px 24px rgba(0,0,0,.3);display:flex;flex-direction:column}
+.panel-label{font-size:.8rem;color:#94a3b8;text-transform:uppercase;letter-spacing:.05em;margin-bottom:.75rem;display:flex;justify-content:space-between;align-items:center}
+.panel-label button{background:transparent;border:1px solid #475569;color:#94a3b8;border-radius:.4rem;padding:.2rem .5rem;font-size:.7rem;cursor:pointer}
+.panel-label button:hover{background:#334155;color:#e2e8f0}
+
+.field{margin-bottom:.75rem}
+.field label{display:block;font-size:.75rem;color:#94a3b8;margin-bottom:.3rem}
+.field input[type=text],.field select,.field textarea{width:100%;background:#0f172a;border:1px solid #334155;border-radius:.5rem;padding:.5rem .6rem;color:#f1f5f9;font-size:.9rem;outline:none}
+.field input[type=text]:focus,.field select:focus,.field textarea:focus{border-color:#38bdf8}
+.field input[type=file]{width:100%;font-size:.8rem;color:#94a3b8}
+.field textarea{resize:vertical;min-height:52px}
+
+.mic-btn{width:96px;height:96px;border-radius:50%;border:3px solid #38bdf8;background:rgba(56,189,248,.1);color:#38bdf8;font-size:2.4rem;cursor:pointer;transition:all .2s;display:flex;align-items:center;justify-content:center;margin:.75rem auto}
+.mic-btn:hover{background:rgba(56,189,248,.2);transform:scale(1.05)}
+.mic-btn.recording{border-color:#f87171;background:rgba(248,113,113,.15);color:#f87171;animation:pulse 1.2s infinite}
+@keyframes pulse{0%,100%{box-shadow:0 0 0 0 rgba(248,113,113,.4)}50%{box-shadow:0 0 0 18px rgba(248,113,113,0)}}
+.timer{font-size:1.3rem;font-variant-numeric:tabular-nums;color:#f1f5f9;margin:.4rem 0;text-align:center}
+.status{text-align:center;margin:.25rem 0;font-size:.8rem;color:#94a3b8;min-height:1.2em}
+.status.err{color:#f87171}
+.controls{display:flex;gap:.5rem;margin-top:.75rem;flex-wrap:wrap;justify-content:center}
+.controls button{background:#334155;color:#e2e8f0;border:1px solid #475569;border-radius:.5rem;padding:.45rem .9rem;font-size:.85rem;cursor:pointer}
+.controls button:hover:not(:disabled){background:#475569}
+.controls button:disabled{opacity:.5;cursor:not-allowed}
+.log{margin-top:.75rem;font-size:.7rem;color:#475569;max-height:110px;overflow-y:auto;line-height:1.5;width:100%}
+.hint{color:#64748b;font-size:.72rem;margin-top:.5rem;text-align:center}
+
+.voice-list{display:flex;flex-direction:column;gap:.6rem;max-height:340px;overflow-y:auto}
+.empty{color:#64748b;font-size:.85rem;text-align:center;padding:1rem 0}
+.voice-card{background:#0f172a;border:1px solid #334155;border-radius:.6rem;padding:.6rem .75rem}
+.voice-card.selected{border-color:#38bdf8;box-shadow:0 0 0 1px #38bdf8}
+.voice-head{display:flex;align-items:center;gap:.5rem;flex-wrap:wrap}
+.voice-name{font-weight:600;font-size:.9rem;color:#f1f5f9}
+.badge{font-size:.68rem;padding:.12rem .45rem;border-radius:999px;font-weight:600}
+.badge-draft{background:#334155;color:#cbd5e1}
+.badge-training{background:rgba(56,189,248,.15);color:#38bdf8}
+.badge-active{background:rgba(52,211,153,.15);color:#34d399}
+.badge-disabled{background:rgba(148,163,184,.15);color:#94a3b8}
+.badge-failed{background:rgba(248,113,113,.15);color:#f87171}
+.review-flag{font-size:.66rem;color:#fbbf24;border:1px solid rgba(251,191,36,.4);border-radius:999px;padding:.1rem .4rem}
+.voice-meta{display:flex;gap:.75rem;font-size:.7rem;color:#64748b;margin-top:.3rem;flex-wrap:wrap}
+.voice-actions{display:flex;gap:.4rem;margin-top:.5rem;flex-wrap:wrap}
+.voice-actions button{font-size:.7rem;padding:.25rem .55rem;border-radius:.4rem;border:1px solid #475569;background:#334155;color:#e2e8f0;cursor:pointer}
+.voice-actions button:hover:not(:disabled){background:#475569}
+.voice-actions button:disabled{opacity:.5;cursor:not-allowed}
+.voice-actions .btn-delete{border-color:rgba(248,113,113,.5);color:#f87171}
+.voice-actions .btn-delete:hover:not(:disabled){background:rgba(248,113,113,.15)}
+
+.sliders{display:flex;flex-direction:column;gap:.55rem;margin:.5rem 0}
+.slider-row{display:flex;align-items:center;gap:.6rem}
+.slider-row label{font-size:.78rem;color:#94a3b8;min-width:110px;display:flex;justify-content:space-between;gap:.4rem}
+.slider-row input[type=range]{flex:1;accent-color:#38bdf8}
+.slider-row.cloud-only label{color:#64748b}
+.slider-row.cloud-only label::after{content:"仅云端";font-size:.62rem;color:#fbbf24;border:1px solid rgba(251,191,36,.4);border-radius:999px;padding:.05rem .35rem;margin-left:.3rem}
+.slider-row.cloud-only input[type=range]{opacity:.4}
+
+audio{display:block;margin-top:.5rem}

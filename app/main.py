@@ -2,12 +2,18 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 
-from app.config import settings
+from app.config import ROOT_DIR, settings
 from app.routes.tts import router as tts_router
 from app.routes.voices import router as voices_router
+
+STATIC_DIR = ROOT_DIR / "static"
 
 app = FastAPI(
     title="Voice Clone Service",
@@ -30,9 +36,12 @@ async def health() -> dict[str, str]:
 
 
 @app.get("/", include_in_schema=False)
-async def root() -> dict[str, str]:
-    return {"service": "voice-clone", "docs": "/docs"}
+async def root() -> FileResponse:
+    """Serve the management SPA."""
+    return FileResponse(STATIC_DIR / "index.html")
 
+
+app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
 app.include_router(voices_router)
 app.include_router(tts_router)
