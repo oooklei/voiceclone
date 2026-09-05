@@ -1,0 +1,24 @@
+# Secrets
+.env
+
+# Local venv
+.venv/
+
+# Runtime data and downloaded models (mounted as volumes, never baked in)
+data/
+models/
+
+# Plan/evidence workspace
+.omo/
+
+# Python caches
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# Git / OS
+.git/
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
