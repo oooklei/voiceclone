@@ -6,6 +6,8 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
+from app.routes.tts import router as tts_router
+from app.routes.voices import router as voices_router
 
 app = FastAPI(
     title="Voice Clone Service",
@@ -30,3 +32,7 @@ async def health() -> dict[str, str]:
 @app.get("/", include_in_schema=False)
 async def root() -> dict[str, str]:
     return {"service": "voice-clone", "docs": "/docs"}
+
+
+app.include_router(voices_router)
+app.include_router(tts_router)

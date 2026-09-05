@@ -60,3 +60,30 @@ class VoiceOut(StrictModel):
     pitch_ratio: float = 1.0
     created_at: str = ""
     updated_at: str = ""
+    # M1 slicing: True when the reference head was too quiet and the prompt
+    # slice fell back to a shifted window — the management page flags it.
+    needs_review: bool = False
+
+
+class SpeakParams(StrictModel):
+    """Optional per-request synthesis overrides (defaults follow V3 contract)."""
+
+    speed_ratio: float = Field(default=1.0, ge=0.1, le=2.0)
+    loudness_ratio: float = Field(default=1.0, ge=0.5, le=2.0)
+    pitch_ratio: float = Field(default=1.0, ge=0.1, le=2.0)
+
+
+class SpeakRequest(StrictModel):
+    """Payload for POST /api/v1/tts/speak and /speak/stream."""
+
+    voice_id: str = Field(min_length=1)
+    text: str = Field(min_length=1, max_length=5000)
+    params: SpeakParams | None = None
+
+
+class ErrorResponse(StrictModel):
+    """Unified error envelope: {code, message, detail?}."""
+
+    code: str
+    message: str
+    detail: dict[str, str] | None = None
