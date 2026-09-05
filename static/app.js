@@ -104,6 +104,7 @@ function statusBadge(status) {
 /* ------------------------------------------------------------ recording */
 
 async function startRecording() {
+  if (isRecording) return; // 防重入：双击/快速点击不会泄漏第二个 interval
   if (!window.isSecureContext) {
     setStatus(
       els.recStatus,
@@ -123,6 +124,8 @@ async function startRecording() {
       if (e.data.size > 0) audioChunks.push(e.data);
     };
     mediaRecorder.onstop = () => {
+      clearInterval(timerId); // 兜底：无论从哪条路径停止都清掉计时器
+      timerId = null;
       stream.getTracks().forEach((t) => t.stop());
       const blob = new Blob(audioChunks, { type: mediaRecorder.mimeType || "audio/webm" });
       els.fileInput.files = null;
@@ -152,6 +155,7 @@ function stopRecording() {
   if (!isRecording || !mediaRecorder) return;
   isRecording = false;
   clearInterval(timerId);
+  timerId = null;
   els.micBtn.classList.remove("recording");
   try {
     mediaRecorder.stop();
@@ -202,8 +206,8 @@ async function createVoice() {
   try {
     const resp = await api("/api/v1/voices", { method: "POST", body: form });
     const voice = await resp.json();
-    log(`创建成功：${voice.name} (${voice.id}) status=${voice.status}`);
-    setStatus(els.recStatus, "创建成功，开始训练", false);
+    log(`新建成功：${voice.name} (${voice.id}) status=${voice.status}`);
+    setStatus(els.recStatus, `已新建音色「${voice.name}」，训练中...`, false);
     els.voiceName.value = "";
     els.fileInput.value = "";
     delete els.fileInput._recordedBlob;
@@ -295,13 +299,18 @@ els.voiceList.addEventListener("click", async (e) => {
   }
   if (action === "retrain") {
     btn.disabled = true;
+    btn.textContent = "训练中...";
     try {
       await api(`/api/v1/voices/${id}/retrain`, { method: "POST" });
       log(`触发重新训练：${id}`);
+      setStatus(els.recStatus, "重新训练中...", false);
       startPolling(id);
       await loadVoices();
     } catch (err) {
+      btn.disabled = false;
+      btn.textContent = "重新训练";
       log("重新训练失败: " + err.message);
+      setStatus(els.recStatus, "重新训练失败：" + err.message, true);
     }
     return;
   }
@@ -354,6 +363,14 @@ function startPolling(voiceId) {
       const resp = await api(`/api/v1/voices/${voiceId}/status`);
       const { status } = await resp.json();
       log(`轮询 ${voiceId}: ${status}`);
+      // 实时更新对应卡片的状态徽章，无需整表重绘
+      const card = document.querySelector(`.voice-card[data-id="${voiceId}"]`);
+      if (card) {
+        const badge = card.querySelector(".badge");
+        if (badge) badge.outerHTML = statusBadge(status);
+        const retrainBtn = card.querySelector('button[data-action="retrain"]');
+        if (retrainBtn) retrainBtn.disabled = status === "training";
+      }
       if (status === "active" || status === "failed") {
         stopPolling(voiceId);
         await loadVoices();
@@ -433,8 +450,12 @@ async function previewSpeak() {
     els.player.src = url;
     els.player.style.display = "block";
     els.stopBtn.disabled = false;
-    setStatus(els.previewStatus, "合成完成，点击播放", false);
+    setStatus(els.previewStatus, "合成完成，正在播放", false);
     log(`试听合成成功：${(blob.size / 1024).toFixed(1)} KB`);
+    // 自动播放：设置 src 后立即播放，避免用户再点一次
+    els.player.play().catch(() => {
+      setStatus(els.previewStatus, "合成完成，点击播放（浏览器阻止了自动播放）", false);
+    });
   } catch (err) {
     setStatus(els.previewStatus, "合成失败：" + err.message, true);
     log("试听失败: " + err.message);
@@ -453,6 +474,28 @@ els.stopBtn.addEventListener("click", () => {
 
 /* ---------------------------------------------------------------- init */
 
+/* 引擎可用性：云端未配置时默认选本地，并提示云端试听可能无声音 */
+async function initEngines() {
+  try {
+    const resp = await api("/api/v1/engines");
+    const engines = await resp.json();
+    const cloudEnabled = engines.cloud && engines.cloud.enabled;
+    const localEnabled = engines.local && engines.local.enabled;
+    if (!cloudEnabled) {
+      // 云端引擎未配置：默认选本地，避免新建音色默认走静音 mock
+      els.providerSel.value = "local";
+      syncRefTextField();
+      setStatus(els.recStatus, "云端引擎未配置，已默认使用本地引擎；选择云端音色试听可能无声音", false);
+    }
+    if (!localEnabled && !cloudEnabled) {
+      setStatus(els.recStatus, "本地与云端引擎均未配置，试听可能无声音", true);
+    }
+  } catch (err) {
+    log("获取引擎状态失败: " + err.message);
+  }
+}
+
 els.refreshBtn.addEventListener("click", loadVoices);
 syncRefTextField();
+initEngines();
 loadVoices();

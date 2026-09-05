@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Voice Clone 管理</title>
+<link rel="icon" href="data:,">
 <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
@@ -13,7 +14,7 @@
 <div class="layout">
   <!-- 左：创建音色 -->
   <div class="panel left">
-    <div class="panel-label"><span>创建音色</span></div>
+    <div class="panel-label"><span>新建音色</span></div>
 
     <div class="field">
       <label for="voiceName">音色名称</label>
@@ -23,8 +24,8 @@
     <div class="field">
       <label for="providerSel">引擎</label>
       <select id="providerSel">
-        <option value="cloud" selected>云端 ICL（火山引擎）</option>
-        <option value="local">本地 ZipVoice（CPU）</option>
+        <option value="local" selected>本地 ZipVoice（CPU）</option>
+        <option value="cloud">云端 ICL（火山引擎）</option>
       </select>
     </div>
 
@@ -43,7 +44,7 @@
     </div>
 
     <div class="controls">
-      <button id="createBtn">创建并训练</button>
+      <button id="createBtn">新建音色</button>
     </div>
     <div class="log" id="log"></div>
     <div class="hint">录音超过 15 秒会自动停止；需允许浏览器麦克风权限</div>
