@@ -10,6 +10,7 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from app.config import ROOT_DIR, settings
+from app.routes.asr import router as asr_router
 from app.routes.tts import router as tts_router
 from app.routes.voices import router as voices_router
 
@@ -55,3 +56,4 @@ app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
 app.include_router(voices_router)
 app.include_router(tts_router)
+app.include_router(asr_router)

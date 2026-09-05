@@ -126,3 +126,42 @@ if ! model_ready || [ ! -f "${ZIP_DIR}/${VOCODER_NAME}" ]; then
 fi
 
 echo "Done. Models are in ${ZIP_DIR}"
+
+# ---------------------------------------------------------------------------
+# Whisper ASR models (faster-whisper small + medium) for the ASR engine.
+# Downloaded per-file from hf-mirror.com (GitHub does not host these).
+# Idempotent: a model dir is skipped when model.bin already exists.
+# ---------------------------------------------------------------------------
+
+WHISPER_DIR="${MODEL_DIR}/whisper"
+
+whisper_ready() {
+    [ -f "${WHISPER_DIR}/${1}/model.bin" ]
+}
+
+download_whisper_model() {
+    name="$1"
+    dest="${WHISPER_DIR}/${name}"
+    if whisper_ready "${name}"; then
+        echo "Whisper ${name} already present in ${dest} - skipping download."
+        return 0
+    fi
+    mkdir -p "${dest}"
+    base="https://hf-mirror.com/Systran/faster-whisper-${name}/resolve/main"
+    for f in config.json model.bin tokenizer.json vocabulary.txt; do
+        if [ -f "${dest}/${f}" ]; then
+            echo "${f} already present - skipping download."
+        else
+            download_with_retry "${base}/${f}" "${dest}/${f}"
+        fi
+    done
+    if ! whisper_ready "${name}"; then
+        echo "Whisper ${name} download incomplete; re-run the script." >&2
+        exit 1
+    fi
+}
+
+download_whisper_model "small"
+download_whisper_model "medium"
+
+echo "Done. Whisper models are in ${WHISPER_DIR}"

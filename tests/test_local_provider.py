@@ -187,6 +187,16 @@ def test_download_script_is_idempotent_with_existing_files(tmp_path):
     (zip_dir / "espeak-ng-data").mkdir()
     mtimes_before = {name: (zip_dir / name).stat().st_mtime_ns for name in stubs}
 
+    # Whisper ASR models (small + medium) are also managed by this script.
+    whisper_files = ("config.json", "model.bin", "tokenizer.json", "vocabulary.txt")
+    whisper_mtimes_before = {}
+    for name in ("small", "medium"):
+        wdir = tmp_path / "models" / "whisper" / name
+        wdir.mkdir(parents=True)
+        for f in whisper_files:
+            (wdir / f).write_bytes(b"stub")
+            whisper_mtimes_before[str(wdir / f)] = (wdir / f).stat().st_mtime_ns
+
     result = subprocess.run(
         [
             "powershell",
@@ -208,3 +218,5 @@ def test_download_script_is_idempotent_with_existing_files(tmp_path):
     for name in stubs:
         assert (zip_dir / name).stat().st_mtime_ns == mtimes_before[name]
         assert (zip_dir / name).read_bytes() == b"stub"
+    for path, mtime in whisper_mtimes_before.items():
+        assert Path(path).stat().st_mtime_ns == mtime

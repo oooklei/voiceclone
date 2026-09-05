@@ -42,6 +42,7 @@ let mediaRecorder = null;
 let audioChunks = [];
 let isRecording = false;
 let recordingSource = null; // 'mic' | 'system'
+let selectedSource = null; // 'mic' | 'system' — 互斥选择的录音来源
 let timerId = null;
 let recSeconds = 0;
 let pollTimers = new Map(); // voiceId -> intervalId
@@ -141,6 +142,8 @@ async function startRecording(source) {
       els.fileInput._recordedBlob = blob;
       setStatus(els.recStatus, `已录制 ${fmtTime(recSeconds)}（${SOURCE_LABEL[source]}），点击「新建音色」提交`, false);
       log(`录音完成（${SOURCE_LABEL[source]}）：${(blob.size / 1024).toFixed(1)} KB`);
+      // 系统音频自动识别文字稿（本地引擎必填）；话筒不触发
+      if (source === "system") autoTranscribe(blob);
     };
     mediaRecorder.start();
     isRecording = true;
@@ -199,13 +202,45 @@ function stopRecording() {
   }
 }
 
+/* 系统音频录制完成后自动识别文字稿（本地引擎必填；话筒不触发） */
+async function autoTranscribe(blob) {
+  setStatus(els.recStatus, "系统音频已录制，正在自动识别文字稿...", false);
+  const form = new FormData();
+  form.append("file", blob, "recording.webm");
+  try {
+    const resp = await api("/api/v1/asr", { method: "POST", body: form });
+    const data = await resp.json();
+    const text = (data.text || "").trim();
+    if (text) {
+      els.refText.value = text;
+      const conf = Math.round((data.confidence || 0) * 100);
+      setStatus(els.recStatus, `已自动识别文字稿（${data.engine}，置信度 ${conf}%），请核对后提交`, false);
+      log(`ASR 识别成功：${text}`);
+    } else {
+      setStatus(els.recStatus, "未识别到语音内容，请手动输入文字稿或重新录制", true);
+      log("ASR 返回空文本");
+    }
+  } catch (err) {
+    setStatus(els.recStatus, "自动识别失败：" + err.message + "，请手动输入文字稿", true);
+    log("ASR 识别失败: " + err.message);
+  }
+}
+
+function selectSource(source) {
+  selectedSource = source;
+  els.micBtn.classList.toggle("selected", source === "mic");
+  els.sysBtn.classList.toggle("selected", source === "system");
+}
+
 els.micBtn.addEventListener("click", () => {
   if (isRecording) stopRecording();
-  else startRecording("mic");
+  selectSource("mic");
+  startRecording("mic");
 });
 els.sysBtn.addEventListener("click", () => {
   if (isRecording) stopRecording();
-  else startRecording("system");
+  selectSource("system");
+  startRecording("system");
 });
 
 /* -------------------------------------------------------------- create */

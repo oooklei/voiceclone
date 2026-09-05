@@ -141,3 +141,43 @@ if (-not (Test-ModelReady) -or -not (Test-Path $VocoderPath)) {
 }
 
 Write-Host "Done. Models are in $ZipDir"
+
+# ---------------------------------------------------------------------------
+# Whisper ASR models (faster-whisper small + medium) for the ASR engine.
+# Downloaded per-file from hf-mirror.com (GitHub does not host these).
+# Idempotent: a model dir is skipped when model.bin already exists.
+# ---------------------------------------------------------------------------
+
+$WhisperDir = Join-Path $ModelDir "whisper"
+
+function Test-WhisperReady {
+    param([string]$Name)
+    Test-Path (Join-Path $WhisperDir (Join-Path $Name "model.bin"))
+}
+
+function Save-WhisperModel {
+    param([string]$Name)
+    $dest = Join-Path $WhisperDir $Name
+    if (Test-WhisperReady $Name) {
+        Write-Host "Whisper $Name already present in $dest - skipping download."
+        return
+    }
+    New-Item -ItemType Directory -Force -Path $dest | Out-Null
+    $base = "https://hf-mirror.com/Systran/faster-whisper-$Name/resolve/main"
+    foreach ($f in @("config.json", "model.bin", "tokenizer.json", "vocabulary.txt")) {
+        $out = Join-Path $dest $f
+        if (Test-Path $out) {
+            Write-Host "$f already present - skipping download."
+        } else {
+            Save-WithRetry -Url "$base/$f" -OutFile $out
+        }
+    }
+    if (-not (Test-WhisperReady $Name)) {
+        throw "Whisper $Name download incomplete. Re-run the script."
+    }
+}
+
+Save-WhisperModel "small"
+Save-WhisperModel "medium"
+
+Write-Host "Done. Whisper models are in $WhisperDir"

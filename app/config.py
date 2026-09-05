@@ -44,6 +44,13 @@ class Settings(BaseSettings):
     LOCAL_TTS_THREADS: int = 4
     LOCAL_TTS_NUM_STEPS: int = 4
 
+    # Local whisper ASR engine (auto-transcribes system-audio reference recordings)
+    ASR_MODEL_DIR: str = "models/whisper/"
+    ASR_PRIMARY_MODEL: str = "small"
+    ASR_BACKUP_MODEL: str = "medium"
+    ASR_THREADS: int = 4
+    ASR_MIN_CONFIDENCE: float = 0.5
+
     # Persistence
     DB_PATH: str = "data/voiceclone.db"
 
