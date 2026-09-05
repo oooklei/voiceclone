@@ -104,6 +104,15 @@ function statusBadge(status) {
 /* ------------------------------------------------------------ recording */
 
 async function startRecording() {
+  if (!window.isSecureContext) {
+    setStatus(
+      els.recStatus,
+      "麦克风仅在 HTTPS 下可用：请改用 https://192.168.1.9:8021 访问（首次需接受自签名证书警告），或改用文件上传",
+      true,
+    );
+    log("非安全上下文（HTTP），浏览器拒绝 getUserMedia");
+    return;
+  }
   try {
     const stream = await navigator.mediaDevices.getUserMedia({
       audio: { echoCancellation: true, noiseSuppression: true },

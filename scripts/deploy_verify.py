@@ -1,22 +1,29 @@
 #!/usr/bin/env python3
 """1.9 deployment verification: create voice -> speak -> verify audio + fallback header."""
 import json
+import os
+import ssl
 import sys
 import time
-import urllib.request
 import urllib.error
-import os
+import urllib.request
 
-BASE = "http://192.168.1.9:8021"
+# HTTPS with self-signed cert: skip verification (LAN deployment)
+BASE = "https://192.168.1.9:8021"
 WAV = r"D:\voiceclone\models\zipvoice\test_wavs\leijun-1.wav"
 TEXT = "你好，这是人声克隆服务的实机部署验证。"
+
+_SSL_CTX = ssl.create_default_context()
+_SSL_CTX.check_hostname = False
+_SSL_CTX.verify_mode = ssl.CERT_NONE
+
 
 def req(method, path, body=None, headers=None, timeout=60):
     url = BASE + path
     data = body.encode() if isinstance(body, str) else body
     r = urllib.request.Request(url, data=data, method=method, headers=headers or {})
     try:
-        with urllib.request.urlopen(r, timeout=timeout) as resp:
+        with urllib.request.urlopen(r, timeout=timeout, context=_SSL_CTX) as resp:
             return resp.status, dict(resp.headers), resp.read()
     except urllib.error.HTTPError as e:
         return e.code, dict(e.headers), e.read()

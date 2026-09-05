@@ -3,6 +3,11 @@
 #
 # Deploy on 192.168.1.9 (flattalk network). See README.md for the full
 # six-step deployment procedure.
+#
+# HTTPS: self-signed certs in ./certs/ (cert.pem + key.pem).
+# Generated with: openssl req -x509 -newkey rsa:2048 -nodes -days 3650 \
+#   -subj "/CN=192.168.1.9" -keyout key.pem -out cert.pem
+# chmod 644 key.pem (container runs as uid 1000).
 
 services:
   gxy-voiceclone:
@@ -12,6 +17,18 @@ services:
     image: gxy-voiceclone:latest
     container_name: gxy-voiceclone
     restart: unless-stopped
+    # HTTPS via uvicorn SSL (self-signed certs, LAN use only)
+    command:
+      - uvicorn
+      - app.main:app
+      - --host
+      - "0.0.0.0"
+      - --port
+      - "8021"
+      - --ssl-keyfile
+      - /app/certs/key.pem
+      - --ssl-certfile
+      - /app/certs/cert.pem
     ports:
       - "8021:8021"
     env_file:
@@ -19,10 +36,11 @@ services:
     volumes:
       - ./data:/app/data
       - ./models:/app/models
+      - ./certs:/app/certs:ro
     networks:
       - flattalk-net
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8021/health', timeout=3)"]
+      test: ["CMD", "python", "-c", "import ssl,urllib.request; _c=ssl.create_default_context(); _c.check_hostname=False; _c.verify_mode=ssl.CERT_NONE; urllib.request.urlopen('https://127.0.0.1:8021/health', timeout=3, context=_c)"]
       interval: 30s
       timeout: 5s
       retries: 3

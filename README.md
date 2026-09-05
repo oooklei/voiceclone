@@ -124,7 +124,12 @@ curl http://127.0.0.1:8021/health
 
 目标机 `192.168.1.9`（root + SSH 密钥 `C:/Users/Administrator/.ssh/id_ed25519`）。端口 `8021` 已核实空闲（宿主机已占用 5000/9080/8020/9000-9001/6333-6334/8080/8443/6379，其中 8020=gxy-tencent-asr；若未来 care_tts 上 1.9 需重估端口）。
 
-### 部署六步
+> **HTTPS（必读）**：管理页麦克风录制依赖浏览器安全上下文（`getUserMedia` 仅 HTTPS/localhost 可用），
+> 因此 1.9 生产 compose 通过 uvicorn `--ssl-keyfile/--ssl-certfile` 启用自签名 HTTPS（同端口 8021）。
+> 浏览器首次访问需接受一次自签名证书警告（「高级」→「继续前往」），之后即为安全上下文，麦克风可用。
+> 前端 `app.js` 已加 `isSecureContext` 检测：非 HTTPS 访问时明确提示改用 https 或文件上传。
+
+### 部署七步
 
 1. **代码上机**（二选一）：
    - 远端 git：`git clone <repo> /opt/voiceclone && cd /opt/voiceclone`
@@ -149,18 +154,28 @@ curl http://127.0.0.1:8021/health
    cp .env.example .env && vi .env
    # 填 VOLC_APP_ID / VOLC_TOKEN（云主力）；其余可留默认
    ```
-5. **启动**：
+5. **自签名证书**（HTTPS 必需；容器内 uid 1000 需可读，故 chmod 644）：
+   ```bash
+   mkdir -p /mnt/lei/gxy/voiceclone/certs && cd /mnt/lei/gxy/voiceclone/certs
+   openssl req -x509 -newkey rsa:2048 -nodes -days 3650 \
+     -subj "/CN=192.168.1.9" -keyout key.pem -out cert.pem
+   chmod 644 key.pem cert.pem
+   ```
+6. **启动**：
    ```bash
    docker compose -f docker-compose.gxy.yml up -d
    docker compose -f docker-compose.gxy.yml ps   # 期望 healthy
    ```
-6. **验证**（一键脚本，9 项断言）：
+   > compose 已通过 `command:` 覆盖 CMD 启用 SSL（`--ssl-keyfile /app/certs/key.pem --ssl-certfile /app/certs/cert.pem`），
+   > 并挂载 `./certs:/app/certs:ro`；healthcheck 走 HTTPS（ssl 不校验）。
+7. **验证**（一键脚本，9 项断言）：
    ```bash
-   curl -s http://192.168.1.9:8021/health        # {"status":"ok"}
+   curl -sk https://192.168.1.9:8021/health      # {"status":"ok"}（-k 跳过自签名校验）
    python3 scripts/deploy_verify.py              # 9/9 passed（建语音→speak→RIFF→删语音）
    ```
    `deploy_verify.py` 走本地真实链：health 200 / 建本地语音 201（active 立即）/ speak 200 /
    RIFF wav 可解析 / fallback=none（本地直链正确）/ 删语音 204 / 列表不含 / 重复删 404 / 无 5xx。
+   脚本 BASE 已指向 `https://192.168.1.9:8021` 且 ssl 不校验（自签名场景）。
 
 ### 回退演练（云端失败场景，已实机验证）
 
