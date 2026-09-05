@@ -1,0 +1,40 @@
+# Voice Clone Service - 1.9 production image (China mirrors)
+# Companion to docker-compose.gxy.yml. Same runtime as the base Dockerfile
+# but apt/pip pull from China mirrors (tuna) so builds are fast on the gxy
+# network (deb.debian.org / pypi.org are slow from China).
+# Models are NEVER baked into the image: models/ is a bind-mounted volume.
+
+FROM python:3.12-slim
+
+# apt runtime libraries from aliyun mirror (fast on gxy network)
+# Verified from inside a container: tuna's CDN 403s apt's client (TLS
+# fingerprinting), aliyun works. Only the main archive is configured; the
+# debian-security suite is not needed to install ffmpeg/libsndfile1/libgomp1.
+RUN printf 'Types: deb\nURIs: https://mirrors.aliyun.com/debian\nSuites: trixie trixie-updates\nComponents: main\nSigned-By: /usr/share/keyrings/debian-archive-keyring.gpg\n' > /etc/apt/sources.list.d/debian.sources \
+    && apt-get update && apt-get install -y --no-install-recommends \
+        ffmpeg \
+        libsndfile1 \
+        libgomp1 \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Python deps first so rebuilds reuse the layer cache
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt \
+    --index-url https://mirrors.aliyun.com/pypi/simple/
+
+# Application code + static management SPA + model download scripts
+COPY app/ ./app/
+COPY static/ ./static/
+COPY scripts/ ./scripts/
+
+# Non-root runtime user; data/ and models/ are volumes mounted at runtime
+RUN useradd --create-home --uid 1000 appuser \
+    && mkdir -p /app/data /app/models \
+    && chown -R appuser:appuser /app
+USER appuser
+
+EXPOSE 8021
+
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8021"]

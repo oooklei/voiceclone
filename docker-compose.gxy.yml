@@ -6,7 +6,9 @@
 
 services:
   gxy-voiceclone:
-    build: .
+    build:
+      context: .
+      dockerfile: Dockerfile.gxy
     image: gxy-voiceclone:latest
     container_name: gxy-voiceclone
     restart: unless-stopped

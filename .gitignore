@@ -20,3 +20,6 @@ models/
 Thumbs.db
 .idea/
 .vscode/
+
+# Generated verification artifacts
+scripts/deploy-verify.wav

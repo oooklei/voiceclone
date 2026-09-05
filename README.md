@@ -129,11 +129,14 @@ curl http://127.0.0.1:8021/health
 1. **代码上机**（二选一）：
    - 远端 git：`git clone <repo> /opt/voiceclone && cd /opt/voiceclone`
    - 或 scp 目录：`scp -r -i C:/Users/Administrator/.ssh/id_ed25519 . root@192.168.1.9:/opt/voiceclone`
-2. **构建镜像**（在 1.9 上）：
+2. **构建镜像**（在 1.9 上，用 `Dockerfile.gxy` 走 aliyun 源）：
    ```bash
    cd /opt/voiceclone
-   docker build -t gxy-voiceclone:latest .
+   docker build -f Dockerfile.gxy -t gxy-voiceclone:latest .
    ```
+   > 实测：容器内 tuna 源被 CDN 拦截（apt/pip 均 403），aliyun 源 apt+pip 均成功。
+   > `Dockerfile.gxy` 仅用主 archive trixie+trixie-updates（无 security suite），
+   > pip 走 `--index-url https://mirrors.aliyun.com/pypi/simple/`。
 3. **模型下载**（1.9 出网已验证可达 github/hf-mirror/pypi）：
    ```bash
    mkdir -p /mnt/lei/gxy/voiceclone/models
@@ -151,28 +154,47 @@ curl http://127.0.0.1:8021/health
    docker compose -f docker-compose.gxy.yml up -d
    docker compose -f docker-compose.gxy.yml ps   # 期望 healthy
    ```
-6. **验证**：
+6. **验证**（一键脚本，9 项断言）：
    ```bash
    curl -s http://192.168.1.9:8021/health        # {"status":"ok"}
-   curl -s -X POST http://192.168.1.9:8021/api/v1/tts/speak \
-     -H "Content-Type: application/json" \
-     --data-binary '{"voice_id":"<id>","text":"你好"}' -o out.wav
+   python3 scripts/deploy_verify.py              # 9/9 passed（建语音→speak→RIFF→删语音）
    ```
+   `deploy_verify.py` 走本地真实链：health 200 / 建本地语音 201（active 立即）/ speak 200 /
+   RIFF wav 可解析 / fallback=none（本地直链正确）/ 删语音 204 / 列表不含 / 重复删 404 / 无 5xx。
 
-### 回退演练（云端失败场景）
+### 回退演练（云端失败场景，已实机验证）
+
+> 关键：`VOLC_TTS_DISABLE=1` 时火山走 mock（返回静音 wav，**不触发回退、无 X-Fallback 头**）。
+> 真实回退演练必须 `VOLC_TTS_DISABLE=0` + 空凭据（真实请求鉴权失败 → ProviderOperationalError → 本地回退），
+> 且云音色的 `local_prompt_path` 必须指向真实本地 prompt（含 `.txt` 侧车，由 API 建本地音色时生成）。
 
 ```bash
-# 临时禁用云端，重建容器
-sed -i 's/^VOLC_TTS_DISABLE=.*/VOLC_TTS_DISABLE=1/' .env
-docker compose -f docker-compose.gxy.yml up -d --force-recreate
-# speak 应自动回退本地，响应头带 X-Fallback: local，音频可播
-curl -s -D - -X POST http://192.168.1.9:8021/api/v1/tts/speak \
-  -H "Content-Type: application/json" \
-  --data-binary '{"voice_id":"<id>","text":"回退测试"}' -o out.wav
-# 恢复
+# 1) 建一个真实本地音色（生成 prompt_slice.wav + 侧车 txt）
+curl -s -X POST http://127.0.0.1:8021/api/v1/voices \
+  -F "name=fb-base" -F "provider=local" -F "reference_text=参考文字稿" \
+  -F "file=@/mnt/lei/gxy/voiceclone/models/zipvoice/test_wavs/leijun-1.wav" \
+  -o /tmp/fb-local.json
+# 记下返回的 local_prompt_path（如 /app/data/local_prompts/<id>.wav）
+
+# 2) 启用云端（空凭据）+ 重建容器
 sed -i 's/^VOLC_TTS_DISABLE=.*/VOLC_TTS_DISABLE=0/' .env
 docker compose -f docker-compose.gxy.yml up -d --force-recreate
+
+# 3) DB 种子一个 cloud 音色，local_prompt_path 指向步骤 1 的真实 prompt
+docker exec gxy-voiceclone python -c "..."   # INSERT voices(provider='cloud', local_prompt_path='<步骤1路径>', ...)
+
+# 4) speak 该云音色 → 期望 200 + X-Fallback: local + 可播 wav
+curl -s -D - -X POST http://127.0.0.1:8021/api/v1/tts/speak \
+  -H "Content-Type: application/json" \
+  --data-binary '{"voice_id":"<cloud_id>","text":"回退测试"}' -o out.wav
+
+# 5) 清理种子音色，恢复云端禁用态
+docker exec gxy-voiceclone python -c "DELETE FROM voices WHERE id IN (...)"
+sed -i 's/^VOLC_TTS_DISABLE=.*/VOLC_TTS_DISABLE=1/' .env
+docker compose -f docker-compose.gxy.yml up -d --force-recreate
 ```
+
+实机结果（2026-09-06）：HTTP 200 | `x-fallback: local` | audio/wav 162522 bytes | 3.38s 真实本地合成。
 
 ### 网络说明（SSE 直连）
 
