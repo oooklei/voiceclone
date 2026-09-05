@@ -33,6 +33,10 @@ class Settings(BaseSettings):
     VOLC_TOKEN: str = ""
     VOLC_RESOURCE_ID: str = "seed-icl-1.0"
     VOLC_TTS_DISABLE: int = 0
+    # Poll loop and HTTP thresholds (seconds)
+    VOLC_HTTP_TIMEOUT_S: float = 15.0
+    VOLC_POLL_INTERVAL_S: float = 10.0
+    VOLC_POLL_TIMEOUT_S: float = 300.0
 
     # Local ZipVoice fallback engine
     LOCAL_TTS_DISABLE: int = 0

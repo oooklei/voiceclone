@@ -48,4 +48,12 @@ def get_provider(name: str) -> CloneProvider:
         )
     if name not in _AVAILABLE:
         raise ValueError(f"unknown provider '{name}', available: {', '.join(_AVAILABLE)}")
+    if name == "volcengine":
+        from app.providers.volcengine import VolcengineProvider
+
+        return VolcengineProvider()
+    if name == "local":
+        from app.providers.local import LocalZipVoiceProvider
+
+        return LocalZipVoiceProvider()
     return _StubProvider(name)
