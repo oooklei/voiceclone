@@ -80,8 +80,8 @@
 
 ### Phase 4 — 打包与离线验证（3-5 天）
 
-- [ ] 4.1 PyInstaller 侧车 spec（hidden imports：onnxruntime/faster_whisper/pyaudiowpatch/uvicorn）
-- [ ] 4.2 模型内置：zipvoice + whisper small 随安装包分发
+- [x] 4.1 PyInstaller 侧车 spec（hidden imports：onnxruntime/faster_whisper/pyaudiowpatch/uvicorn）
+- [x] 4.2 模型内置：zipvoice + whisper small 随安装包分发
 - [ ] 4.3 Tauri bundle → NSIS 安装包
 - [ ] 4.4 断网验证清单：干净机器安装 → 系统音频录音 → 克隆 → 合成
 
