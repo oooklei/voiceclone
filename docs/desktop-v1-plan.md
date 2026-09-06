@@ -82,8 +82,8 @@
 
 - [x] 4.1 PyInstaller 侧车 spec（hidden imports：onnxruntime/faster_whisper/pyaudiowpatch/uvicorn）
 - [x] 4.2 模型内置：zipvoice + whisper small 随安装包分发
-- [ ] 4.3 Tauri bundle → NSIS 安装包
-- [ ] 4.4 断网验证清单：干净机器安装 → 系统音频录音 → 克隆 → 合成
+- [x] 4.3 Tauri bundle → NSIS 安装包
+- [x] 4.4 断网验证清单：干净机器安装 → 系统音频录音 → 克隆 → 合成
 
 ## 五、风险与对策
 
