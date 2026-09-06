@@ -1,96 +1,173 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Voice Clone 管理</title>
-<link rel="icon" href="data:,">
-<link rel="stylesheet" href="/static/style.css">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=5">
+  <title>VoiceClone Studio</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
-<h1>Voice Clone 管理</h1>
-<p class="subtitle">人声克隆播报服务 · 录音/上传参考音频 → 训练 → 调参试听</p>
-
-<div class="layout">
-  <!-- 左：创建音色 -->
-  <div class="panel left">
-    <div class="panel-label"><span>新建音色</span></div>
-
-    <div class="field">
-      <label for="voiceName">音色名称</label>
-      <input id="voiceName" type="text" maxlength="100" placeholder="例如：主播小张">
-    </div>
-
-    <div class="field">
-      <label for="providerSel">引擎</label>
-      <select id="providerSel">
-        <option value="local" selected>本地 ZipVoice（CPU）</option>
-        <option value="cloud">云端 ICL（火山引擎）</option>
-      </select>
-    </div>
-
-    <div class="mic-row">
-      <button class="mic-btn" id="micBtn" title="点击录音（最长 15 秒）">&#127908;</button>
-      <button class="mic-btn" id="sysBtn" title="录制系统音频（选择正在播放音频的标签页/窗口）">&#128266;</button>
-    </div>
-    <div class="timer" id="timer">00:00</div>
-    <div class="status" id="recStatus">点击 🎤 话筒或 🔊 系统音频录音（二选一），或上传音频文件</div>
-
-    <div class="field">
-      <label for="fileInput">或上传参考音频（wav/mp3，5–15 秒最佳）</label>
-      <input id="fileInput" type="file" accept="audio/*">
-    </div>
-
-    <div class="field" id="refTextField" style="display:none">
-      <label for="refText">参考音频文字稿（本地引擎必填）</label>
-      <textarea id="refText" rows="2" maxlength="2000" placeholder="输入参考音频中朗读的文字内容，用于本地克隆..."></textarea>
-    </div>
-
-    <div class="controls">
-      <button id="createBtn">新建音色</button>
-    </div>
-    <div class="log" id="log"></div>
-    <div class="hint">🎤 与 🔊 互斥选择；系统音频录制后自动识别文字稿（本地引擎必填）。录音超过 15 秒自动停止；麦克风需浏览器权限，系统音频请在弹出窗口中选择正在播放音频的标签页</div>
-  </div>
-
-  <!-- 右：音色列表 + 试听 -->
-  <div class="panel right">
-    <div class="panel-label">
-      <span>音色列表</span>
-      <button id="refreshBtn">刷新</button>
-    </div>
-    <div id="voiceList" class="voice-list"></div>
-
-    <div class="panel-label" style="margin-top:1rem"><span>试听</span></div>
-    <div class="field">
-      <label for="previewText">试听文本</label>
-      <textarea id="previewText" rows="2" maxlength="5000" placeholder="输入要合成的文本...">你好，我是克隆音色，欢迎使用语音播报服务。</textarea>
-    </div>
-
-    <div class="sliders">
-      <div class="slider-row">
-        <label>语速 <span id="speedVal">1.00</span></label>
-        <input type="range" id="speedRatio" min="0.1" max="2.0" step="0.05" value="1.0">
+  <!-- 顶部导航栏 -->
+  <header class="app-header" role="banner">
+    <div class="header-left">
+      <div class="app-logo" aria-hidden="true">
+        <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
+          <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+          <line x1="12" y1="19" x2="12" y2="23"/>
+          <line x1="8" y1="23" x2="16" y2="23"/>
+        </svg>
       </div>
-      <div class="slider-row">
-        <label>音量 <span id="loudnessVal">1.00</span></label>
-        <input type="range" id="loudnessRatio" min="0.5" max="2.0" step="0.05" value="1.0">
-      </div>
-      <div class="slider-row">
-        <label>音调 <span id="pitchVal">1.00</span></label>
-        <input type="range" id="pitchRatio" min="0.1" max="2.0" step="0.05" value="1.0">
+      <div class="app-title">
+        <h1>VoiceClone Studio</h1>
+        <span class="app-subtitle">人声克隆 · 离线运行</span>
       </div>
     </div>
-
-    <div class="controls">
-      <button id="previewBtn">试听</button>
-      <button id="stopBtn" disabled>停止</button>
+    <div class="header-right">
+      <div class="status-pill" id="statusPill" role="status" aria-live="polite">
+        <span class="status-dot" id="statusDot"></span>
+        <span class="status-text" id="statusText">连接中...</span>
+      </div>
     </div>
-    <div class="status" id="previewStatus"></div>
-    <audio id="player" controls style="width:100%;margin-top:.5rem;display:none"></audio>
-  </div>
-</div>
+  </header>
 
-<script src="/static/app.js"></script>
+  <main class="app-main" role="main">
+    <div class="layout">
+      <!-- 左：创建音色 -->
+      <section class="card" aria-labelledby="create-title">
+        <div class="card-header">
+          <h2 id="create-title" class="card-title">
+            <span class="card-icon" aria-hidden="true">＋</span>
+            新建音色
+          </h2>
+        </div>
+
+        <div class="card-body">
+          <div class="field">
+            <label for="voiceName">音色名称</label>
+            <input id="voiceName" type="text" maxlength="100" placeholder="例如：主播小张" autocomplete="off">
+            <span class="field-hint">给音色起一个易识别的名字</span>
+          </div>
+
+          <div class="field">
+            <label for="providerSel">克隆引擎</label>
+            <div class="select-wrap">
+              <select id="providerSel">
+                <option value="local" selected>本地 ZipVoice（CPU，离线）</option>
+                <option value="cloud">云端 ICL（火山引擎）</option>
+              </select>
+            </div>
+            <span class="field-hint" id="engineHint">本地引擎无需联网，数据不出本机</span>
+          </div>
+
+          <!-- 录音区 -->
+          <div class="recorder">
+            <div class="recorder-buttons">
+              <button class="rec-btn" id="micBtn" data-source="mic" aria-label="麦克风录音" title="点击开始/停止麦克风录音（最长 15 秒）">
+                <span class="rec-icon" aria-hidden="true">🎤</span>
+                <span class="rec-label">麦克风</span>
+              </button>
+              <button class="rec-btn" id="sysBtn" data-source="system" aria-label="系统音频录音" title="点击开始/停止系统音频录制">
+                <span class="rec-icon" aria-hidden="true">🔊</span>
+                <span class="rec-label">系统声音</span>
+              </button>
+            </div>
+            <div class="rec-timer" id="timer" aria-live="off">00:00</div>
+            <div class="rec-hint" id="recStatus">点击上方按钮开始录音，或下方上传音频文件</div>
+          </div>
+
+          <div class="divider"><span>或</span></div>
+
+          <div class="field">
+            <label for="fileInput">上传参考音频</label>
+            <div class="file-drop" id="fileDrop">
+              <input id="fileInput" type="file" accept="audio/*" aria-describedby="fileHint">
+              <div class="file-drop-content">
+                <span class="file-icon" aria-hidden="true">📁</span>
+                <span class="file-text">点击或拖拽音频文件到此处</span>
+                <span class="file-sub">支持 WAV / MP3 · 5–15 秒最佳</span>
+              </div>
+            </div>
+            <span id="fileHint" class="field-hint">参考音频将用于训练音色克隆模型</span>
+          </div>
+
+          <div class="field" id="refTextField">
+            <label for="refText">参考音频文字稿 <span class="req">*</span></label>
+            <textarea id="refText" rows="2" maxlength="2000" placeholder="输入参考音频中朗读的文字内容（本地引擎必填）..."></textarea>
+            <span class="field-hint">本地引擎需要参考文字稿来训练音色</span>
+          </div>
+
+          <button id="createBtn" class="btn-primary btn-lg" disabled>
+            <span class="btn-text">新建音色</span>
+            <span class="btn-spinner" aria-hidden="true"></span>
+          </button>
+        </div>
+      </section>
+
+      <!-- 右：音色列表 + 试听 -->
+      <section class="card" aria-labelledby="manage-title">
+        <div class="card-header">
+          <h2 id="manage-title" class="card-title">
+            <span class="card-icon" aria-hidden="true">♪</span>
+            我的音色
+          </h2>
+          <button id="refreshBtn" class="btn-ghost" aria-label="刷新音色列表">
+            <span aria-hidden="true">↻</span> 刷新
+          </button>
+        </div>
+
+        <div class="card-body">
+          <div id="voiceList" class="voice-list" role="list" aria-label="音色列表">
+            <div class="empty-state">
+              <span class="empty-icon" aria-hidden="true">🎙️</span>
+              <span class="empty-text">正在加载音色列表...</span>
+            </div>
+          </div>
+
+          <div class="divider"></div>
+
+          <h3 class="section-title">试听与调参</h3>
+
+          <div class="field">
+            <label for="previewText">试听文本</label>
+            <textarea id="previewText" rows="2" maxlength="5000" placeholder="输入要合成的文本...">你好，我是克隆音色，欢迎使用语音播报服务。</textarea>
+            <div class="char-count"><span id="charCount">0</span> / 5000</div>
+          </div>
+
+          <div class="sliders">
+            <div class="slider-row">
+              <label>语速 <span id="speedVal" class="slider-val">1.00</span></label>
+              <input type="range" id="speedRatio" min="0.5" max="2.0" step="0.05" value="1.0" aria-label="语速">
+            </div>
+            <div class="slider-row">
+              <label>音量 <span id="loudnessVal" class="slider-val">1.00</span></label>
+              <input type="range" id="loudnessRatio" min="0.5" max="2.0" step="0.05" value="1.0" aria-label="音量">
+            </div>
+            <div class="slider-row">
+              <label>音调 <span id="pitchVal" class="slider-val">1.00</span></label>
+              <input type="range" id="pitchRatio" min="0.5" max="2.0" step="0.05" value="1.0" aria-label="音调">
+            </div>
+          </div>
+
+          <div class="action-row">
+            <button id="previewBtn" class="btn-primary">
+              <span class="btn-text">▶ 试听合成</span>
+              <span class="btn-spinner" aria-hidden="true"></span>
+            </button>
+            <button id="stopBtn" class="btn-ghost" disabled>⏹ 停止</button>
+          </div>
+
+          <div id="previewStatus" class="preview-status" aria-live="polite"></div>
+          <audio id="player" controls preload="auto"></audio>
+        </div>
+      </section>
+    </div>
+  </main>
+
+  <!-- Toast 通知容器 -->
+  <div class="toast-container" id="toastContainer" role="region" aria-live="polite" aria-label="通知"></div>
+
+  <script src="/static/app.js"></script>
 </body>
 </html>

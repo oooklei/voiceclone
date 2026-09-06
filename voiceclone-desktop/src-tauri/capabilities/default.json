@@ -5,6 +5,9 @@
   "windows": ["main"],
   "permissions": [
     "core:default",
-    "opener:default"
+    "opener:default",
+    "allow-start-capture",
+    "allow-stop-capture",
+    "allow-sidecar-status"
   ]
 }

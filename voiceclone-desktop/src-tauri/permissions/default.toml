@@ -1,0 +1,14 @@
+[[permission]]
+identifier = "allow-start-capture"
+description = "Allow start_capture command for system audio recording"
+commands.allow = ["start_capture"]
+
+[[permission]]
+identifier = "allow-stop-capture"
+description = "Allow stop_capture command to retrieve recorded audio"
+commands.allow = ["stop_capture"]
+
+[[permission]]
+identifier = "allow-sidecar-status"
+description = "Allow sidecar_status command to check sidecar health"
+commands.allow = ["sidecar_status"]
