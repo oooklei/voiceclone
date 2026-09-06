@@ -167,24 +167,51 @@ async function startRecording(source) {
 
 async function getSystemAudioStream() {
   // Chrome 124+：仅音频的屏幕捕获选择器（displaySurface: 'audio'）
+  let stream;
   try {
-    const stream = await navigator.mediaDevices.getDisplayMedia({
+    stream = await navigator.mediaDevices.getDisplayMedia({
       video: { displaySurface: "audio" },
       audio: true,
     });
-    stream.getVideoTracks().forEach((t) => t.stop());
-    return stream;
   } catch (err) {
     // 用户取消选择器：直接抛出，不弹第二个选择器
     if (err.name === "NotAllowedError" || err.name === "AbortError") throw err;
     // 旧浏览器回退：完整屏幕捕获后丢弃视频轨
-    const stream = await navigator.mediaDevices.getDisplayMedia({
+    stream = await navigator.mediaDevices.getDisplayMedia({
       video: true,
       audio: true,
     });
-    stream.getVideoTracks().forEach((t) => t.stop());
-    return stream;
   }
+  stream.getVideoTracks().forEach((t) => t.stop());
+  // 选整个屏幕/窗口时 Chrome 不提供音频轨，MediaRecorder.start() 会直接抛错；
+  // 这里提前校验并给出可操作的提示
+  const audioTracks = stream.getAudioTracks();
+  if (audioTracks.length === 0) {
+    stream.getTracks().forEach((t) => t.stop());
+    throw new Error("未捕获到系统音频：请选择正在播放音频的标签页，不要选整个屏幕或窗口");
+  }
+  const track = audioTracks[0];
+  if (track.readyState === "ended") {
+    stream.getTracks().forEach((t) => t.stop());
+    throw new Error("音频来源已关闭，请重新选择");
+  }
+  if (track.muted) {
+    // 所选标签页当前无声音输出时 Chrome 提供静音轨；等待其解除静音
+    setStatus(els.recStatus, "等待系统音频输出（请确认所选标签页正在播放声音）...", false);
+    await new Promise((resolve, reject) => {
+      const timeout = setTimeout(() => {
+        track.onunmute = null;
+        stream.getTracks().forEach((t) => t.stop());
+        reject(new Error("未检测到系统音频输出：请确认所选标签页正在播放声音"));
+      }, 5000);
+      track.onunmute = () => {
+        clearTimeout(timeout);
+        track.onunmute = null;
+        resolve();
+      };
+    });
+  }
+  return stream;
 }
 
 function stopRecording() {
