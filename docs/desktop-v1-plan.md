@@ -63,20 +63,20 @@
 - [x] 1.5 requirements 增加 `pyaudiowpatch`；本地测试全绿
 - [x] 1.6 验证：本地起侧车 → curl capture start → 播放音乐 → stop → 拿 WAV → ASR
 
-### Phase 2 — Tauri 外壳（5-7 天）
+### Phase 2 — Tauri 外壳（5-7 天）✅ 已完成
 
-- [ ] 2.1 脚手架：`voiceclone-desktop/` Tauri 2 项目（Rust 工具链确认）
-- [ ] 2.2 前端接入：static/ 页面加载进 WebView，app.js 加 Tauri 适配层（有 `__TAURI__` 走本地 API，否则回退浏览器捕获）
-- [ ] 2.3 Rust 命令：`start_capture` / `stop_capture` / `sidecar_status`（调侧车 HTTP）
-- [ ] 2.4 侧车进程管理：启动时 spawn（`--port 0 --token`），解析 stdout READY，退出时 kill
-- [ ] 2.5 录音→ASR→填参考文本链路打通（复用 autoTranscribe 逻辑）
-- [ ] 2.6 本地 `cargo tauri dev` 全流程验证
+- [x] 2.1 脚手架：`voiceclone-desktop/` Tauri 2 项目（Rust 工具链确认）
+- [x] 2.2 前端接入：static/ 页面加载进 WebView，app.js 加 Tauri 适配层（有 `__TAURI__` 走本地 API，否则回退浏览器捕获）
+- [x] 2.3 Rust 命令：`start_capture` / `stop_capture` / `sidecar_status`（调侧车 HTTP）
+- [x] 2.4 侧车进程管理：启动时 spawn（`--port 0 --token`），解析 stdout READY，退出时 kill
+- [x] 2.5 录音→ASR→填参考文本链路打通（复用 autoTranscribe 逻辑）
+- [x] 2.6 本地 `cargo tauri dev` 全流程验证
 
-### Phase 3 — SDK 薄封装（3-5 天）
+### Phase 3 — SDK 薄封装（3-5 天）✅ 已完成
 
-- [ ] 3.1 `voiceclone-sdk/` Python 包：`VoiceCloneClient`（clone/speak/asr）
-- [ ] 3.2 打包 wheel + 本地安装验证
-- [ ] 3.3 示例：`examples/sdk_demo.py`（克隆 + 合成 + 识别）
+- [x] 3.1 `voiceclone-sdk/` Python 包：`VoiceCloneClient`（clone/speak/asr）
+- [x] 3.2 打包 wheel + 本地安装验证
+- [x] 3.3 示例：`examples/sdk_demo.py`（克隆 + 合成 + 识别）
 
 ### Phase 4 — 打包与离线验证（3-5 天）
 

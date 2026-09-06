@@ -6,6 +6,7 @@
 __pycache__/
 *.py[cod]
 *.egg-info/
+build/
 .pytest_cache/
 
 # Runtime data and models
@@ -23,6 +24,9 @@ Thumbs.db
 
 # Generated verification artifacts
 scripts/deploy-verify.wav
+
+# Build artifacts
+dist/
 
 # Tauri desktop shell
 voiceclone-desktop/node_modules/
