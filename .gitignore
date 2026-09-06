@@ -23,3 +23,8 @@ Thumbs.db
 
 # Generated verification artifacts
 scripts/deploy-verify.wav
+
+# Tauri desktop shell
+voiceclone-desktop/node_modules/
+voiceclone-desktop/src-tauri/target/
+voiceclone-desktop/src/

@@ -54,14 +54,14 @@
 
 ## 四、分阶段任务
 
-### Phase 1 — 引擎服务化 + 原生音频捕获（3-5 天）
+### Phase 1 — 引擎服务化 + 原生音频捕获（3-5 天）✅ 已完成
 
-- [ ] 1.1 侧车启动参数化：`--port 0`（随机端口）+ `--token`，stdout 打印 `READY port=xxxx token=xxxx`
-- [ ] 1.2 鉴权中间件：`X-Auth-Token` 校验（/health 除外）
-- [ ] 1.3 捕获模块 `app/capture.py`：pyaudiowpatch WASAPI loopback，能量门控复用
-- [ ] 1.4 捕获路由 `app/routes/capture.py`：start/stop/status，stop 返回 WAV
-- [ ] 1.5 requirements 增加 `pyaudiowpatch`；本地测试全绿
-- [ ] 1.6 验证：本地起侧车 → curl capture start → 播放音乐 → stop → 拿 WAV → ASR
+- [x] 1.1 侧车启动参数化：`--port 0`（随机端口）+ `--token`，stdout 打印 `READY port=xxxx token=xxxx`
+- [x] 1.2 鉴权中间件：`X-Auth-Token` 校验（/health 除外）
+- [x] 1.3 捕获模块 `app/capture.py`：pyaudiowpatch WASAPI loopback，能量门控复用
+- [x] 1.4 捕获路由 `app/routes/capture.py`：start/stop/status，stop 返回 WAV
+- [x] 1.5 requirements 增加 `pyaudiowpatch`；本地测试全绿
+- [x] 1.6 验证：本地起侧车 → curl capture start → 播放音乐 → stop → 拿 WAV → ASR
 
 ### Phase 2 — Tauri 外壳（5-7 天）
 

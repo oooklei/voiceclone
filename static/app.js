@@ -37,6 +37,8 @@ const els = {
 const MAX_RECORD_MS = 15000; // 15 秒自动停止
 const POLL_MS = 10000; // 训练状态轮询间隔
 const SOURCE_LABEL = { mic: "麦克风", system: "系统音频" };
+// 桌面版（Tauri WebView）检测：系统音频录制走侧车 WASAPI loopback，无浏览器选择器
+const isTauri = typeof window.__TAURI__ !== "undefined";
 
 let mediaRecorder = null;
 let audioChunks = [];
@@ -117,6 +119,10 @@ async function startRecording(source) {
     );
     log("非安全上下文（HTTP），浏览器拒绝录音");
     return;
+  }
+  // 桌面版：系统音频由侧车 WASAPI loopback 录制（无 MediaRecorder）
+  if (source === "system" && isTauri) {
+    return startSystemAudioTauri();
   }
   try {
     let stream;
@@ -214,14 +220,59 @@ async function getSystemAudioStream() {
   return stream;
 }
 
+/* 桌面版系统音频录制：侧车 WASAPI loopback（无 MediaRecorder，WAV 由侧车生成） */
+async function startSystemAudioTauri() {
+  try {
+    await window.__TAURI__.core.invoke("start_capture");
+    isRecording = true;
+    recordingSource = "system";
+    els.micBtn.classList.add("recording");
+    els.sysBtn.classList.add("recording");
+    recSeconds = 0;
+    els.timer.textContent = fmtTime(0);
+    setStatus(els.recStatus, "系统音频录制中... 15 秒自动停止", false);
+    timerId = setInterval(() => {
+      recSeconds++;
+      els.timer.textContent = fmtTime(recSeconds);
+      if (recSeconds * 1000 >= MAX_RECORD_MS) stopRecording();
+    }, 1000);
+    log("开始录制（系统音频，侧车 WASAPI）");
+  } catch (err) {
+    setStatus(els.recStatus, "系统音频录制失败：" + err.message, true);
+    log("系统音频录制错误: " + err.message);
+  }
+}
+
+async function stopSystemAudioTauri() {
+  try {
+    const wav = await window.__TAURI__.core.invoke("stop_capture");
+    const blob = new Blob([new Uint8Array(wav)], { type: "audio/wav" });
+    els.fileInput.files = null;
+    els.fileInput._recordedBlob = blob;
+    setStatus(els.recStatus, `已录制 ${fmtTime(recSeconds)}（系统音频），点击「新建音色」提交`, false);
+    log(`录音完成（系统音频）：${(blob.size / 1024).toFixed(1)} KB`);
+    autoTranscribe(blob, "recording.wav");
+  } catch (err) {
+    setStatus(els.recStatus, "系统音频录制失败：" + err.message, true);
+    log("系统音频录制错误: " + err.message);
+  }
+}
+
 function stopRecording() {
-  if (!isRecording || !mediaRecorder) return;
+  if (!isRecording) return;
+  const source = recordingSource;
   isRecording = false;
   recordingSource = null;
   clearInterval(timerId);
   timerId = null;
   els.micBtn.classList.remove("recording");
   els.sysBtn.classList.remove("recording");
+  // 桌面版系统音频：从侧车取 WAV
+  if (isTauri && source === "system") {
+    stopSystemAudioTauri();
+    return;
+  }
+  if (!mediaRecorder) return;
   try {
     mediaRecorder.stop();
   } catch (_) {
@@ -230,10 +281,10 @@ function stopRecording() {
 }
 
 /* 系统音频录制完成后自动识别文字稿（本地引擎必填；话筒不触发） */
-async function autoTranscribe(blob) {
+async function autoTranscribe(blob, filename = "recording.webm") {
   setStatus(els.recStatus, "系统音频已录制，正在自动识别文字稿...", false);
   const form = new FormData();
-  form.append("file", blob, "recording.webm");
+  form.append("file", blob, filename);
   try {
     const resp = await api("/api/v1/asr", { method: "POST", body: form });
     const data = await resp.json();
