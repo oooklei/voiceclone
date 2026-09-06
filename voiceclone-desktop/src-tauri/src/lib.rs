@@ -28,26 +28,41 @@ struct SidecarStatus {
     base_url: Option<String>,
 }
 
-/// 定位 sidecar.py：环境变量覆盖 > exe 相对路径 > cargo manifest 相对路径。
-fn sidecar_script_path() -> Option<PathBuf> {
+/// 定位侧车可执行：环境变量覆盖 > 打包资源（resources/sidecar/sidecar.exe）> exe 相对路径 > cargo manifest。
+/// 返回 (程序路径, 是否需要 python 包装)。
+fn sidecar_program(app: &tauri::AppHandle) -> Option<(PathBuf, bool)> {
+    // 1. 环境变量覆盖（打包/调试均可指定）
     if let Ok(dir) = std::env::var("VOICECLONE_SIDECAR_DIR") {
-        let p = PathBuf::from(dir).join("sidecar.py");
-        if p.exists() {
-            return Some(p);
+        let d = PathBuf::from(dir);
+        let exe = d.join("sidecar.exe");
+        if exe.exists() {
+            return Some((exe, false));
+        }
+        let py = d.join("sidecar.py");
+        if py.exists() {
+            return Some((py, true));
         }
     }
+    // 2. 打包分发：<resource_dir>/sidecar/sidecar.exe（PyInstaller onedir）
+    if let Ok(res) = app.path().resource_dir() {
+        let exe = res.join("sidecar").join("sidecar.exe");
+        if exe.exists() {
+            return Some((exe, false));
+        }
+    }
+    // 3. dev：exe 相对路径（debug: target/debug -> src-tauri -> voiceclone-desktop -> voiceclone）
     if let Ok(exe) = std::env::current_exe() {
         if let Some(dir) = exe.parent() {
-            // debug: target/debug -> src-tauri -> voiceclone-desktop -> voiceclone
             let p = dir.join("..").join("..").join("..").join("..").join("sidecar.py");
             if p.exists() {
-                return Some(p);
+                return Some((p, true));
             }
         }
     }
+    // 4. cargo manifest 相对路径
     let p = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("..").join("..").join("sidecar.py");
     if p.exists() {
-        return Some(p);
+        return Some((p, true));
     }
     None
 }
@@ -63,13 +78,20 @@ fn python_executable(script_dir: &Path) -> PathBuf {
 }
 
 fn spawn_sidecar(app: &tauri::AppHandle) -> Result<(), String> {
-    let script = sidecar_script_path().ok_or("sidecar.py not found")?;
-    let script_dir = script.parent().ok_or("sidecar.py has no parent dir")?.to_path_buf();
-    let python = python_executable(&script_dir);
+    let (program, is_script) =
+        sidecar_program(app).ok_or("sidecar not found (sidecar.exe or sidecar.py)")?;
+    let mut cmd = if is_script {
+        let script_dir = program.parent().ok_or("sidecar has no parent dir")?.to_path_buf();
+        let python = python_executable(&script_dir);
+        let mut c = Command::new(&python);
+        c.arg(&program);
+        c
+    } else {
+        Command::new(&program)
+    };
 
     let port = std::env::var("VOICECLONE_SIDECAR_PORT").unwrap_or_else(|_| "0".into());
-    let mut cmd = Command::new(&python);
-    cmd.arg(&script).args(["--port", &port]);
+    cmd.args(["--port", &port]);
     if let Ok(token) = std::env::var("VOICECLONE_SIDECAR_TOKEN") {
         cmd.args(["--token", &token]);
     }
