@@ -4,13 +4,14 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from app.config import ROOT_DIR, settings
 from app.routes.asr import router as asr_router
+from app.routes.capture import router as capture_router
 from app.routes.tts import router as tts_router
 from app.routes.voices import router as voices_router
 
@@ -29,6 +30,30 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.middleware("http")
+async def auth_middleware(request: Request, call_next):
+    """Enforce X-Auth-Token on /api/v1/* when a token is configured.
+
+    The desktop sidecar sets ``app.state.auth_token`` at startup; the
+    browser/1.9 deployment leaves it unset and the API stays open.
+    """
+    token = getattr(request.app.state, "auth_token", None)
+    if token and request.url.path.startswith("/api/v1/"):
+        if request.headers.get("X-Auth-Token") != token:
+            # Runs before CORS middleware, so carry the CORS headers here
+            # (the desktop WebView calls this API cross-origin).
+            return JSONResponse(
+                status_code=401,
+                content={"code": "unauthorized", "message": "invalid or missing X-Auth-Token"},
+                headers={
+                    "Access-Control-Allow-Origin": "*",
+                    "Access-Control-Allow-Methods": "*",
+                    "Access-Control-Allow-Headers": "*",
+                },
+            )
+    return await call_next(request)
 
 
 @app.get("/health")
@@ -57,3 +82,4 @@ app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 app.include_router(voices_router)
 app.include_router(tts_router)
 app.include_router(asr_router)
+app.include_router(capture_router)
