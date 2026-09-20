@@ -12,9 +12,13 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import atexit
+import json
+import os
 import secrets
 import socket
 import sys
+import time
 
 
 def _parse_args(argv: list[str]) -> argparse.Namespace:
@@ -23,6 +27,46 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument("--port", type=int, default=0, help="bind port, 0 = random (default 0)")
     parser.add_argument("--token", default="", help="auth token; auto-generated when empty")
     return parser.parse_args(argv)
+
+
+def _write_endpoint(port: int, token: str) -> None:
+    """将 {base_url, token, pid, time} 写入 %APPDATA%\VoiceClone\endpoint.json，
+    供 recorder 等外部系统发现并绑定此 sidecar 实例。
+    base_url 需与 recorder parseEndpointJson（只认 base_url/baseUrl）对齐。"""
+    appdata = os.environ.get("APPDATA", "")
+    if not appdata:
+        return
+    ep_dir = os.path.join(appdata, "VoiceClone")
+    os.makedirs(ep_dir, exist_ok=True)
+    ep_file = os.path.join(ep_dir, "endpoint.json")
+    try:
+        with open(ep_file, "w", encoding="utf-8") as f:
+            json.dump(
+                {
+                    "base_url": f"http://127.0.0.1:{port}",
+                    "port": port,
+                    "token": token,
+                    "pid": os.getpid(),
+                    "time": time.time(),
+                },
+                f,
+                ensure_ascii=False,
+            )
+    except Exception:
+        pass  # 写入失败不影响 sidecar 运行
+
+
+def _remove_endpoint() -> None:
+    """sidecar 退出时删除 endpoint.json。"""
+    appdata = os.environ.get("APPDATA", "")
+    if not appdata:
+        return
+    ep_file = os.path.join(appdata, "VoiceClone", "endpoint.json")
+    try:
+        if os.path.isfile(ep_file):
+            os.remove(ep_file)
+    except Exception:
+        pass
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -44,10 +88,19 @@ def main(argv: list[str] | None = None) -> int:
 
     from uvicorn import Config, Server
 
-    config = Config(app, host=args.host, port=actual_port, log_level="warning")
+    # 解决 Windows GUI 模式下 sys.stdout=None 导致 uvicorn 日志配置失败
+    config = Config(
+        app, host=args.host, port=actual_port, log_level="warning",
+        log_config=None,
+    )
     server = Server(config)
     # Socket is already bound+listening, so READY is accurate before run().
     print(f"READY port={actual_port} token={token}", flush=True)
+
+    # 导出 endpoint.json 供外部系统发现；退出时自动清理
+    _write_endpoint(actual_port, token)
+    atexit.register(_remove_endpoint)
+
     server.run(sockets=[sock])
     return 0
 

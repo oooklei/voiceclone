@@ -44,12 +44,21 @@ async def test_root_serves_management_spa(client) -> None:
     assert resp.status_code == 200
     assert resp.headers["content-type"].startswith("text/html")
     html = resp.text
-    assert "Voice Clone 管理" in html
-    assert "创建音色" in html
+    assert "VoiceClone Studio" in html
+    assert "新建音色" in html
     assert "试听" in html
     assert "参考音频文字稿" in html
-    assert "/static/app.js" in html
-    assert "/static/style.css" in html
+    assert "/app.js" in html
+    assert "/style.css" in html
+
+
+@pytest.mark.asyncio
+async def test_root_assets_served(client) -> None:
+    """The SPA references root-relative assets (Tauri/browser layout parity)."""
+    for path, content_type in (("/app.js", "text/javascript"), ("/style.css", "text/css")):
+        resp = await client.get(path)
+        assert resp.status_code == 200
+        assert resp.headers["content-type"].startswith(content_type)
 
 
 @pytest.mark.asyncio

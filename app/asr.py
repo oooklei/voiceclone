@@ -140,14 +140,19 @@ _T2S = {
 }
 
 _OPENCC = None
+_ZHCONV = None
 
 
 def _to_simplified(text: str) -> str:
     """Convert traditional Chinese to simplified.
 
-    Prefers OpenCC when installed; falls back to the small built-in table.
+    Preference chain: OpenCC (full phrase dictionary) -> zhconv (large
+    pure-Python phrase table) -> the tiny built-in table. zhconv keeps the
+    fallback coverage broad even on machines without OpenCC installed, so
+    ASR transcripts never leak traditional characters.
     """
-    global _OPENCC
+    global _OPENCC, _ZHCONV
+    text = text or ""
     if _OPENCC is None:
         try:
             from opencc import OpenCC
@@ -157,4 +162,13 @@ def _to_simplified(text: str) -> str:
             _OPENCC = False
     if _OPENCC:
         return _OPENCC(text)
+    if _ZHCONV is None:
+        try:
+            from zhconv import convert as _zhconv_convert
+
+            _ZHCONV = _zhconv_convert
+        except Exception:
+            _ZHCONV = False
+    if _ZHCONV:
+        return _ZHCONV(text, "zh-cn")
     return "".join(_T2S.get(ch, ch) for ch in text)

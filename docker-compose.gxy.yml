@@ -18,6 +18,9 @@ services:
     container_name: gxy-voiceclone
     restart: unless-stopped
     # HTTPS via uvicorn SSL (self-signed certs, LAN use only)
+    # --workers 2: local TTS synthesis blocks the worker event loop for
+    # minutes on long text; a second worker keeps /voices & /health
+    # responsive while worker 1 is busy synthesizing.
     command:
       - uvicorn
       - app.main:app
@@ -25,6 +28,8 @@ services:
       - "0.0.0.0"
       - --port
       - "8021"
+      - --workers
+      - "2"
       - --ssl-keyfile
       - /app/certs/key.pem
       - --ssl-certfile
@@ -33,6 +38,13 @@ services:
       - "8021:8021"
     env_file:
       - .env
+    # 默认数据目录为 $APPDATA/VoiceClone/data；容器内无 APPDATA 时回退
+    # ROOT_DIR(/app)/VoiceClone/data —— 那是容器可写层，未挂载，容器重建即丢
+    # （2026-09-14 三个音色即因此丢失）。显式设为 /app/data 使语音数据落到
+    # 挂载卷 ./data:/app/data（/app/data/VoiceClone/data），重建不丢。
+    # DB_PATH 由 .env 显式指定 data/voiceclone.db，不受 APPDATA 影响。
+    environment:
+      - APPDATA=/app/data
     volumes:
       - ./data:/app/data
       - ./models:/app/models

@@ -17,7 +17,7 @@ from pydub import AudioSegment
 
 _SAMPLE_RATE = 16000
 _FRAMES_PER_BUFFER = 1024
-_RMS_MIN = 0.01  # same threshold as the voice-creation prompt gate
+_RMS_MIN = 0.01  # below this RMS the capture is treated as silent
 
 
 @dataclass

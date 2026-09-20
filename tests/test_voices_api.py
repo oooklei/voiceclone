@@ -115,7 +115,7 @@ async def test_happy_path_cloud_lifecycle(client, data_dir) -> None:
 
 
 @pytest.mark.asyncio
-async def test_create_local_voice_slices_prompt(client, data_dir) -> None:
+async def test_create_local_voice_uses_full_reference_as_prompt(client) -> None:
     resp = await _create(client, provider="local", reference_text="这是一段参考音频。")
     assert resp.status_code == 201, resp.text
     voice = resp.json()
@@ -129,7 +129,7 @@ async def test_create_local_voice_slices_prompt(client, data_dir) -> None:
         assert w.getframerate() == 24000
         assert w.getnchannels() == 1
         assert w.getsampwidth() == 2
-        assert w.getnframes() == 24000 * 3  # 3 s slice
+        assert w.getnframes() == 24000 * 8  # full 8 s reference, not a 3 s slice
 
 
 @pytest.mark.asyncio
@@ -140,7 +140,9 @@ async def test_create_local_without_reference_text_rejected(client) -> None:
 
 
 @pytest.mark.asyncio
-async def test_local_quiet_head_flags_needs_review(client) -> None:
+async def test_create_local_quiet_reference_still_uses_full_prompt(client) -> None:
+    # A quiet reference no longer triggers a shifted-window slice / review
+    # flag; the full reference duration is kept as the prompt.
     resp = await _create(
         client,
         wav=_make_wav(6.0, amplitude=0.0),
@@ -148,7 +150,10 @@ async def test_local_quiet_head_flags_needs_review(client) -> None:
         reference_text="静音参考。",
     )
     assert resp.status_code == 201, resp.text
-    assert resp.json()["needs_review"] is True
+    voice = resp.json()
+    prompt = Path(voice["local_prompt_path"])
+    with wave.open(str(prompt), "rb") as w:
+        assert w.getnframes() == 24000 * 6  # full duration preserved
 
 
 @pytest.mark.asyncio
@@ -183,6 +188,33 @@ async def test_retrain_cloud_resets_to_training(client) -> None:
     resp = await client.post(f"/api/v1/voices/{voice['id']}/retrain")
     assert resp.status_code == 200
     assert resp.json()["status"] == "training"
+
+
+@pytest.mark.asyncio
+async def test_retrain_local_with_new_reference(client) -> None:
+    voice = (
+        await _create(client, provider="local", name="keep-name", reference_text="旧参考。")
+    ).json()
+
+    resp = await client.post(
+        f"/api/v1/voices/{voice['id']}/retrain",
+        data={"reference_text": "新参考文稿。"},
+        files={"file": ("ref.wav", _make_wav(4.0), "audio/wav")},
+    )
+    assert resp.status_code == 200, resp.text
+    updated = resp.json()
+    assert updated["id"] == voice["id"]
+    assert updated["name"] == "keep-name"  # retrain keeps the voice name
+    assert updated["reference_text"] == "新参考文稿。"
+    assert updated["status"] == "active"
+    prompt = Path(updated["local_prompt_path"])
+    assert prompt.is_file()
+    assert prompt.with_suffix(".txt").read_text(encoding="utf-8") == "新参考文稿。"
+    with wave.open(str(prompt), "rb") as w:
+        assert w.getframerate() == 24000
+        assert w.getnframes() == 24000 * 4  # full new 4 s reference as prompt
+    # same-extension upload overwrites the old reference in place
+    assert Path(updated["reference_path"]).is_file()
 
 
 # ---------------------------------------------------------------- failure

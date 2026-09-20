@@ -16,5 +16,7 @@ numpy==2.5.2
 pydub==0.25.1
 python-dotenv==1.2.3
 faster-whisper>=1.0.0
+# Traditional->simplified Chinese fallback for ASR transcripts (pure python)
+zhconv==1.4.3
 # WASAPI loopback capture (desktop sidecar only; Windows wheels only)
 PyAudioWPatch==0.2.12.8; sys_platform == "win32"

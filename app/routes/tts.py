@@ -160,17 +160,30 @@ def _collect_wav(chunks: AudioChunks) -> bytes:
     they are joined first; already-complete per-segment wavs are merged.
     """
     data = b"".join(chunks)
+    # wave.open parses only the FIRST RIFF header: a join of several
+    # complete wavs would otherwise be returned as "one continuous stream"
+    # and later truncated to its first segment by _combine_wav_chunks. Count
+    # the RIFF headers up-front so multi-wav joins take the merge path.
+    if data.count(b"RIFF") > 1:
+        return _merge_wav_segments(data)
     try:
         with wave.open(io.BytesIO(data), "rb"):
             return data  # one continuous wav stream
     except (wave.Error, EOFError):
         pass
     # Per-segment complete wavs: concat raw, then re-merge piece by piece.
+    return _merge_wav_segments(data)
+
+
+def _merge_wav_segments(data: bytes) -> bytes:
+    """Split a blob of concatenated complete wavs and merge their frames."""
     segment_wavs: list[bytes] = []
     offset = 0
     while offset < len(data) - 12:
         riff_size = int.from_bytes(data[offset + 4 : offset + 8], "little")
         end = offset + 8 + riff_size
+        if end <= offset or end > len(data):
+            break  # malformed trailing bytes: keep the leading segments only
         segment_wavs.append(data[offset:end])
         offset = end
     return _combine_wav_chunks(segment_wavs)

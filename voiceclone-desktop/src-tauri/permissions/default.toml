@@ -12,3 +12,23 @@ commands.allow = ["stop_capture"]
 identifier = "allow-sidecar-status"
 description = "Allow sidecar_status command to check sidecar health"
 commands.allow = ["sidecar_status"]
+
+[[permission]]
+identifier = "allow-fetch-get"
+description = "Allow fetch_get command to forward GET requests to sidecar"
+commands.allow = ["fetch_get"]
+
+[[permission]]
+identifier = "allow-fetch-post"
+description = "Allow fetch_post command to forward POST/PATCH/DELETE requests to sidecar"
+commands.allow = ["fetch_post"]
+
+[[permission]]
+identifier = "allow-speak"
+description = "Allow speak command to synthesize speech via sidecar"
+commands.allow = ["speak"]
+
+[[permission]]
+identifier = "allow-api-upload"
+description = "Allow api_upload command to forward file uploads to sidecar"
+commands.allow = ["api_upload"]

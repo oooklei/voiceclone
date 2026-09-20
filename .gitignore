@@ -28,7 +28,17 @@ scripts/deploy-verify.wav
 # Build artifacts
 dist/
 
+# Installer packaging copy (duplicates dist/ PyInstaller bundle)
+setup/
+
+# Archived legacy artifacts (voice samples + old build outputs)
+_archive/data_legacy/
+_archive/sdk_legacy/build/
+_archive/sdk_legacy/build_legacy/
+_archive/sdk_legacy/dist_legacy/
+
 # Tauri desktop shell
 voiceclone-desktop/node_modules/
 voiceclone-desktop/src-tauri/target/
 voiceclone-desktop/src/
+.gstack/

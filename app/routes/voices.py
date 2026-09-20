@@ -34,17 +34,22 @@ from app.providers.volcengine import (
     ReferenceAudioError,
 )
 from app.repositories.voice_repository import VoiceRepository
-from app.schemas import StrictModel, VoiceCreate, VoiceOut, VoiceProvider, VoiceUpdate
+from app.schemas import StrictModel, VoiceCreate, VoiceGender, VoiceOut, VoiceProvider, VoiceUpdate, VoiceAgeGroup
 
 router = APIRouter(prefix="/api/v1/voices", tags=["voices"])
 
-DATA_DIR = ROOT_DIR / "data"
+# 所有数据（声音文件、提示文件）统一存到用户可写位置，避免 sidecar 重建时丢失
+import os as _os
+_DATA_DIR = Path(_os.environ.get("APPDATA", str(ROOT_DIR))) / "VoiceClone" / "data"
+_DATA_DIR.mkdir(parents=True, exist_ok=True)
+DATA_DIR = _DATA_DIR
 
-# M1 slicing decision: fixed 3 s head slice; if its RMS is below threshold,
-# retry once with the window shifted +1 s and flag the voice for review.
-_SLICE_MS = 3000
-_SLICE_SHIFT_MS = 1000
-_RMS_MIN = 0.01
+# Local ZipVoice prompt strategy: the FULL reference audio (normalized to
+# 24 kHz 16-bit mono) is used as the prompt, paired with the full
+# reference_text. Probe-verified: slicing the reference to the first 3 s
+# while supplying the full transcript (previous M1 behavior) made the
+# zero-shot text/audio pair mismatched -> garbage synthesis; the full
+# reference + full transcript is what produces intelligible speech.
 _PROMPT_RATE = 24000
 
 _ALLOWED_STATUS_PATCH = ("active", "disabled")
@@ -78,6 +83,9 @@ async def create_voice(
     file: UploadFile = File(...),
     provider: VoiceProvider = Form("cloud"),
     reference_text: str = Form("", max_length=2000),
+    nickname: str = Form(""),
+    gender: VoiceGender = Form("unknown"),
+    age_group: VoiceAgeGroup = Form("adult"),
     repo: VoiceRepository = Depends(get_repo),
 ) -> VoiceOut:
     audio = await file.read()
@@ -89,7 +97,10 @@ async def create_voice(
             detail="local engine requires the transcript of the reference audio (reference_text)",
         )
 
-    voice = repo.create(VoiceCreate(name=name, provider=provider, reference_text=reference_text.strip()))
+    voice = repo.create(VoiceCreate(
+        name=name, provider=provider, reference_text=reference_text.strip(),
+        nickname=nickname.strip(), gender=gender, age_group=age_group,
+    ))
     voice_dir = DATA_DIR / "voices" / voice.id
     voice_dir.mkdir(parents=True, exist_ok=True)
 
@@ -99,18 +110,17 @@ async def create_voice(
     reference_path = voice_dir / f"reference{ext}"
     reference_path.write_bytes(audio)
 
-    needs_review = False
     local_prompt_path = ""
     cloud_speaker_id = ""
 
     try:
         if provider == "local":
-            slice_path, needs_review = _slice_prompt(reference_path, voice_dir / "prompt_slice.wav")
+            prompt_path = _convert_prompt(reference_path, voice_dir / "prompt.wav")
             local_prompt_path = get_provider("local").train(
                 VoiceProfile(
                     voice_id=voice.id,
                     name=name,
-                    reference_path=slice_path,
+                    reference_path=prompt_path,
                     reference_text=reference_text,
                 )
             )
@@ -140,8 +150,6 @@ async def create_voice(
         ),
     )
     assert updated is not None  # row was just created
-    if needs_review:
-        updated = updated.model_copy(update={"needs_review": True})
     return updated
 
 
@@ -180,29 +188,89 @@ async def update_voice(
 
 
 @router.post("/{voice_id}/retrain", response_model=VoiceOut)
-async def retrain_voice(voice_id: str, repo: VoiceRepository = Depends(get_repo)) -> VoiceOut:
+async def retrain_voice(
+    voice_id: str,
+    file: UploadFile | None = File(None),
+    reference_text: str = Form("", max_length=2000),
+    repo: VoiceRepository = Depends(get_repo),
+) -> VoiceOut:
+    """Re-train a voice in place.
+
+    Optional multipart ``file`` + ``reference_text`` replace the reference
+    audio/transcript; when omitted the existing on-disk reference is
+    re-used. Local voices keep the full reference as the prompt (same path
+    as create_voice); cloud voices re-run ICL training.
+    """
     voice = repo.get(voice_id)
     if voice is None:
         raise HTTPException(status_code=404, detail=f"voice not found: {voice_id}")
+
     reference = Path(voice.reference_path)
-    if not reference.is_file():
+    new_reference_path: Path | None = None
+    saved_reference_text = reference_text.strip() or voice.reference_text
+
+    if file is not None:
+        audio = await file.read()
+        if not audio:
+            raise HTTPException(status_code=422, detail="uploaded audio file is empty")
+        voice_dir = DATA_DIR / "voices" / voice.id
+        voice_dir.mkdir(parents=True, exist_ok=True)
+        ext = Path(file.filename or "").suffix.lower()
+        if not _EXT_RE.match(ext):
+            ext = ".wav"
+        new_reference_path = voice_dir / f"reference{ext}"
+        new_reference_path.write_bytes(audio)
+    elif not reference.is_file():
         raise HTTPException(status_code=422, detail="reference audio missing on disk")
 
     profile = VoiceProfile(
         voice_id=voice.id,
         name=voice.name,
-        reference_path=reference,
-        reference_text=voice.reference_text,
+        reference_path=new_reference_path or reference,
+        reference_text=saved_reference_text,
     )
     try:
         if voice.provider == "local":
-            prompt_path = get_provider("local").train(profile)
-            updated = repo.update(voice_id, VoiceUpdate(status="active", local_prompt_path=prompt_path))
+            prompt_path = _convert_prompt(
+                new_reference_path or reference, DATA_DIR / "voices" / voice.id / "prompt.wav"
+            )
+            local_prompt_path = get_provider("local").train(profile)
+            updated = repo.update(
+                voice_id,
+                VoiceUpdate(
+                    status="active",
+                    local_prompt_path=local_prompt_path,
+                    reference_path=str(new_reference_path) if new_reference_path else None,
+                    reference_text=saved_reference_text,
+                ),
+            )
         else:
+            if new_reference_path is not None:
+                _validate_cloud_reference(new_reference_path, new_reference_path.read_bytes())
             speaker_id = get_provider("volcengine").train(profile)
-            updated = repo.update(voice_id, VoiceUpdate(status="training", cloud_speaker_id=speaker_id))
+            updated = repo.update(
+                voice_id,
+                VoiceUpdate(
+                    status="training",
+                    cloud_speaker_id=speaker_id,
+                    reference_path=str(new_reference_path) if new_reference_path else None,
+                    reference_text=saved_reference_text,
+                ),
+            )
     except ProviderError as exc:
+        if new_reference_path is not None:
+            new_reference_path.unlink(missing_ok=True)
         _raise_mapped(exc)
+    except Exception:
+        if new_reference_path is not None:
+            new_reference_path.unlink(missing_ok=True)
+        raise
+    if (
+        new_reference_path is not None
+        and str(new_reference_path) != str(reference)
+        and reference.is_file()
+    ):
+        reference.unlink(missing_ok=True)  # drop the superseded old reference
     assert updated is not None
     return updated
 
@@ -262,35 +330,24 @@ def _validate_cloud_reference(path: Path, audio: bytes) -> None:
         )
 
 
-def _slice_prompt(source: Path, dest: Path) -> tuple[Path, bool]:
-    """Extract a 3 s, 24 kHz 16-bit mono wav prompt per the M1 strategy.
+def _convert_prompt(source: Path, dest: Path) -> Path:
+    """Normalize the FULL reference audio to a 24 kHz 16-bit mono wav prompt.
 
-    Returns (path, needs_review). needs_review is True when the head window
-    was too quiet and the +1 s shifted window was used instead.
+    The whole file (not a 3 s slice) is used so the prompt matches the full
+    reference_text — otherwise the ZipVoice zero-shot text/audio pair is
+    mismatched and synthesis comes out as garbage (probe-verified).
+    pydub shells out to ffmpeg, so webm/mp3/ogg uploads are supported too.
     """
     import numpy as np
+    import soundfile as sf
     from pydub import AudioSegment
 
     seg = AudioSegment.from_file(str(source))
-
-    def rms(window: AudioSegment) -> float:
-        samples = np.array(window.get_array_of_samples(), dtype=np.float32)
-        if samples.size == 0:
-            return 0.0
-        samples /= float(1 << (8 * window.sample_width - 1))
-        return float(np.sqrt(np.mean(samples * samples)))
-
-    window = seg[:_SLICE_MS]
-    needs_review = False
-    if rms(window) < _RMS_MIN:
-        shifted = seg[_SLICE_SHIFT_MS : _SLICE_SHIFT_MS + _SLICE_MS]
-        if len(shifted) > 0:
-            window = shifted
-        needs_review = True
-
-    window = window.set_frame_rate(_PROMPT_RATE).set_channels(1).set_sample_width(2)
-    window.export(str(dest), format="wav")
-    return dest, needs_review
+    seg = seg.set_frame_rate(_PROMPT_RATE).set_channels(1).set_sample_width(2)
+    # 使用 soundfile 直接写入 WAV，避免 pydub/ffmpeg 导出格式不确定
+    samples = np.array(seg.get_array_of_samples(), dtype=np.float32) / 32768.0
+    sf.write(str(dest), samples, _PROMPT_RATE, subtype="PCM_16")
+    return dest
 
 
 def _probe_duration_seconds(path: Path, audio: bytes) -> float | None:

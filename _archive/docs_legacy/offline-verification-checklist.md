@@ -1,4 +1,4 @@
-# VoiceClone 桌面版断网验证清单（Phase 4.4）
+# VoiceClone 桌面版断网验证清单（Phase 3.4）
 
 > 目标：在**无网络连接**的干净 Windows 机器上验证安装包可安装、可录音、可克隆、可合成，
 > 全程零网络依赖。对应 `desktop-v1-plan.md` 验收标准第 1-3 条。
@@ -49,18 +49,7 @@
 - [ ] 关闭并重启应用，已克隆音色仍在（`data\voiceclone.db` 持久化）
 - [ ] 重启后侧车自动重新拉起，无需手动操作
 
-## 6. SDK 验证（可选，需联网安装 SDK 后断网运行）
-
-- [ ] `pip install voiceclone-sdk` 后，3 行代码完成克隆 + 合成：
-
-```python
-from voiceclone_sdk import VoiceCloneClient
-client = VoiceCloneClient(base_url="http://127.0.0.1:8021", token="<token>")
-voice_id = client.clone("ref.wav")
-client.speak(voice_id, "你好，世界", "out.wav")
-```
-
-## 7. 回归确认
+## 6. 回归确认
 
 - [ ] 浏览器版（1.9）不受影响，继续可用（独立部署，互不干扰）
 

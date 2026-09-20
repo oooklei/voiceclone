@@ -1,15 +1,14 @@
 # VoiceClone 桌面版 v1 实施方案
 
 > 状态：已确认（2026-09-06）
-> 决策：Windows-only v1 / Python SDK 优先 / 模型内置（砍掉 whisper medium）
-> 背景：浏览器无法直接捕获系统音频（安全模型限制），业务调整为 Rust 桌面版 + SDK 集成
+> 决策：Windows-only v1 / 模型内置（砍掉 whisper medium）
+> 背景：浏览器无法直接捕获系统音频（安全模型限制），业务调整为 Rust 桌面版
 
 ## 一、目标
 
 1. **桌面应用**：Tauri 2（Rust 外壳）+ WebView2 UI，离线可安装使用
 2. **系统音频**：WASAPI Loopback 原生捕获，无需浏览器选择器
-3. **SDK**：其他程序通过本地 HTTP API + Python 薄封装调用"克隆 + 合成"
-4. **复用**：现有 FastAPI 引擎（ZipVoice TTS + faster-whisper ASR）零改动核心
+3. **复用**：现有 FastAPI 引擎（ZipVoice TTS + faster-whisper ASR）零改动核心
 
 ## 二、架构
 
@@ -27,13 +26,6 @@
 │  ├─ 新增 /api/v1/capture/*（WASAPI loopback）    │
 │  ├─ ZipVoice TTS + faster-whisper ASR（small）   │
 │  └─ 模型：zipvoice + whisper small 内置          │
-└──────────────┬──────────────────────────────────┘
-               │
-┌──────────────▼──────────────────────────────────┐
-│  SDK：voiceclone-sdk（Python 包）                │
-│  ├─ clone(name, audio, text) → voice_id         │
-│  ├─ speak(voice_id, text, params) → wav bytes   │
-│  └─ asr(audio) → text                           │
 └─────────────────────────────────────────────────┘
 ```
 
@@ -50,7 +42,7 @@
 | `/api/v1/capture/stop` | POST | 停止录音，返回 WAV 文件 |
 | `/api/v1/capture/status` | GET | 录音状态 |
 
-鉴权：所有 `/api/v1/*` 需 `X-Auth-Token` 头（侧车启动时生成，Tauri/SDK 持有）。
+鉴权：所有 `/api/v1/*` 需 `X-Auth-Token` 头（侧车启动时生成，Tauri 持有）。
 
 ## 四、分阶段任务
 
@@ -72,18 +64,12 @@
 - [x] 2.5 录音→ASR→填参考文本链路打通（复用 autoTranscribe 逻辑）
 - [x] 2.6 本地 `cargo tauri dev` 全流程验证
 
-### Phase 3 — SDK 薄封装（3-5 天）✅ 已完成
+### Phase 3 — 打包与离线验证（3-5 天）
 
-- [x] 3.1 `voiceclone-sdk/` Python 包：`VoiceCloneClient`（clone/speak/asr）
-- [x] 3.2 打包 wheel + 本地安装验证
-- [x] 3.3 示例：`examples/sdk_demo.py`（克隆 + 合成 + 识别）
-
-### Phase 4 — 打包与离线验证（3-5 天）
-
-- [x] 4.1 PyInstaller 侧车 spec（hidden imports：onnxruntime/faster_whisper/pyaudiowpatch/uvicorn）
-- [x] 4.2 模型内置：zipvoice + whisper small 随安装包分发
-- [x] 4.3 Tauri bundle → NSIS 安装包
-- [x] 4.4 断网验证清单：干净机器安装 → 系统音频录音 → 克隆 → 合成
+- [x] 3.1 PyInstaller 侧车 spec（hidden imports：onnxruntime/faster_whisper/pyaudiowpatch/uvicorn）
+- [x] 3.2 模型内置：zipvoice + whisper small 随安装包分发
+- [x] 3.3 Tauri bundle → NSIS 安装包
+- [x] 3.4 断网验证清单：干净机器安装 → 系统音频录音 → 克隆 → 合成
 
 ## 五、风险与对策
 
@@ -101,5 +87,4 @@
 1. 断网 Windows 机器：安装包安装成功，无网络依赖
 2. 系统音频录音：播放任意声音 → 一键录制 → 自动识别文字稿
 3. 克隆 + 合成：与浏览器版音质一致
-4. SDK：`pip install voiceclone-sdk` 后 3 行代码完成克隆 + 合成
-5. 浏览器版（1.9）不受影响，继续可用
+4. 浏览器版（1.9）不受影响，继续可用

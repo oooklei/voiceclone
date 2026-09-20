@@ -17,6 +17,8 @@ class StrictModel(BaseModel):
 
 VoiceProvider = Literal["cloud", "local"]
 VoiceStatus = Literal["draft", "training", "active", "disabled", "failed"]
+VoiceGender = Literal["male", "female", "unknown"]
+VoiceAgeGroup = Literal["child", "adult", "elderly"]
 
 
 class VoiceCreate(StrictModel):
@@ -33,6 +35,10 @@ class VoiceCreate(StrictModel):
     speed_ratio: float = Field(default=1.0, ge=0.1, le=2.0)
     loudness_ratio: float = Field(default=1.0, ge=0.5, le=2.0)
     pitch_ratio: float = Field(default=1.0, ge=0.1, le=2.0)
+    # 展示用扩展字段
+    nickname: str = ""
+    gender: VoiceGender = "unknown"
+    age_group: VoiceAgeGroup = "adult"
 
 
 class VoiceUpdate(StrictModel):
@@ -47,6 +53,9 @@ class VoiceUpdate(StrictModel):
     speed_ratio: float | None = Field(default=None, ge=0.1, le=2.0)
     loudness_ratio: float | None = Field(default=None, ge=0.5, le=2.0)
     pitch_ratio: float | None = Field(default=None, ge=0.1, le=2.0)
+    nickname: str | None = None
+    gender: VoiceGender | None = None
+    age_group: VoiceAgeGroup | None = None
 
 
 class VoiceOut(StrictModel):
@@ -65,9 +74,10 @@ class VoiceOut(StrictModel):
     pitch_ratio: float = 1.0
     created_at: str = ""
     updated_at: str = ""
-    # M1 slicing: True when the reference head was too quiet and the prompt
-    # slice fell back to a shifted window — the management page flags it.
-    needs_review: bool = False
+    # 展示用扩展字段
+    nickname: str = ""
+    gender: VoiceGender = "unknown"
+    age_group: VoiceAgeGroup = "adult"
 
 
 class SpeakParams(StrictModel):

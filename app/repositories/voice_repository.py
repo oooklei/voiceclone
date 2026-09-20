@@ -28,6 +28,9 @@ CREATE TABLE IF NOT EXISTS voices (
     speed_ratio REAL DEFAULT 1.0,
     loudness_ratio REAL DEFAULT 1.0,
     pitch_ratio REAL DEFAULT 1.0,
+    nickname TEXT DEFAULT '',
+    gender TEXT DEFAULT 'unknown' CHECK(gender IN ('male', 'female', 'unknown')),
+    age_group TEXT DEFAULT 'adult' CHECK(age_group IN ('child', 'adult', 'elderly')),
     created_at TEXT,
     updated_at TEXT
 )
@@ -59,6 +62,9 @@ def _row_to_voice(row: sqlite3.Row) -> VoiceOut:
         pitch_ratio=row["pitch_ratio"],
         created_at=row["created_at"] or "",
         updated_at=row["updated_at"] or "",
+        nickname=row["nickname"] or "",
+        gender=row["gender"] or "unknown",
+        age_group=row["age_group"] or "adult",
     )
 
 
@@ -78,12 +84,16 @@ class VoiceRepository:
     def _init_schema(self) -> None:
         with self._connect() as conn:
             conn.execute(SCHEMA)
-            # Lightweight migration: add reference_text to DBs created before
-            # the transcript feature landed (CREATE TABLE IF NOT EXISTS does
-            # not alter existing tables).
+            # Lightweight migration: add columns to DBs created before features landed.
             cols = {row["name"] for row in conn.execute("PRAGMA table_info(voices)")}
             if "reference_text" not in cols:
                 conn.execute("ALTER TABLE voices ADD COLUMN reference_text TEXT")
+            if "nickname" not in cols:
+                conn.execute("ALTER TABLE voices ADD COLUMN nickname TEXT DEFAULT ''")
+            if "gender" not in cols:
+                conn.execute("ALTER TABLE voices ADD COLUMN gender TEXT DEFAULT 'unknown'")
+            if "age_group" not in cols:
+                conn.execute("ALTER TABLE voices ADD COLUMN age_group TEXT DEFAULT 'adult'")
 
     def create(self, payload: VoiceCreate) -> VoiceOut:
         now = _now()
@@ -96,8 +106,9 @@ class VoiceRepository:
                     reference_path, local_prompt_path, cloud_speaker_id,
                     reference_text,
                     speed_ratio, loudness_ratio, pitch_ratio,
+                    nickname, gender, age_group,
                     created_at, updated_at
-                ) VALUES (?, ?, ?, 'draft', ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ) VALUES (?, ?, ?, 'draft', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     voice_id,
@@ -110,6 +121,9 @@ class VoiceRepository:
                     payload.speed_ratio,
                     payload.loudness_ratio,
                     payload.pitch_ratio,
+                    payload.nickname,
+                    payload.gender,
+                    payload.age_group,
                     now,
                     now,
                 ),

@@ -1,4 +1,4 @@
-# -*- mode: python ; coding: utf-8 -*-
+﻿# -*- mode: python ; coding: utf-8 -*-
 """PyInstaller spec for the VoiceClone desktop sidecar (onedir).
 
 Build:
@@ -23,8 +23,21 @@ Design notes:
 
 from PyInstaller.utils.hooks import collect_dynamic_libs, collect_submodules
 
+# Collect all app submodules
+_app_submodules = collect_submodules("app")
+
 # Lazy / dynamic imports that PyInstaller's static analysis cannot see.
 hiddenimports = [
+    # app package
+    "app",
+    "app.config",
+    "app.main",
+    "app.schemas",
+    "app.repositories.voice_repository",
+    "app.routes.tts",
+    "app.routes.voices",
+    "app.routes.asr",
+    "app.routes.capture",
     # app/asr.py: from faster_whisper import WhisperModel (lazy)
     "faster_whisper",
     "ctranslate2",
@@ -33,6 +46,12 @@ hiddenimports = [
     # app/capture.py: import pyaudiowpatch as pyaudio (lazy)
     "pyaudiowpatch",
     "pyaudio",
+    # app/providers/*.py: local & volcengine providers
+    "app.providers",
+    "app.providers.local",
+    "app.providers.volcengine",
+    "app.providers.base",
+    "app.providers.factory",
     # app/providers/local.py: import sherpa_onnx (lazy)
     "sherpa_onnx",
     # app/providers/local.py + volcengine.py: import soundfile (lazy)
@@ -50,6 +69,9 @@ hiddenimports = [
     "uvicorn.lifespan.on",
     "uvicorn.lifespan.off",
 ]
+
+# Add all app submodules
+hiddenimports += _app_submodules
 
 # Native packages with lazy imports: pull in every submodule + DLL.
 _native_pkgs = [
@@ -72,6 +94,8 @@ for _pkg in _native_pkgs:
 datas = [
     ("../static", "static"),
     ("../models", "models"),
+    # zhconv dictionary
+    ("../.venv/Lib/site-packages/zhconv/zhcdict.json", "zhconv"),
 ]
 
 a = Analysis(
@@ -99,7 +123,7 @@ exe = EXE(
     bootloader_ignore_signals=False,
     strip=False,
     upx=False,
-    console=True,
+    console=False,
     disable_windowed_traceback=False,
     argv_emulation=False,
     target_arch=None,

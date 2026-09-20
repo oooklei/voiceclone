@@ -74,6 +74,20 @@ def _split_sentences(text: str) -> list[str]:
     return [p for p in parts if p] or [text.strip()]
 
 
+def _merge_short_sentences(sentences: list[str], min_chars: int = 15) -> list[str]:
+    """将过短的相邻句子合并，确保每段 >= min_chars 字，避免 ZipVoice 对极短句压缩生成。"""
+    merged = []
+    buf = ""
+    for s in sentences:
+        buf += s
+        if len(buf) >= min_chars:
+            merged.append(buf)
+            buf = ""
+    if buf:
+        merged.append(buf)
+    return merged or sentences
+
+
 class LocalZipVoiceProvider(CloneProvider):
     """ZipVoice-Distill int8 via sherpa-onnx, offline and non-streaming."""
 
@@ -82,9 +96,15 @@ class LocalZipVoiceProvider(CloneProvider):
         if not base.is_absolute():
             base = ROOT_DIR / base
         self._model_dir = base / "zipvoice"
-        dbase = Path(data_dir) if data_dir else ROOT_DIR / "data"
-        if not dbase.is_absolute():
-            dbase = ROOT_DIR / dbase
+        if data_dir:
+            dbase = Path(data_dir)
+            if not dbase.is_absolute():
+                dbase = ROOT_DIR / dbase
+        else:
+            # 默认存到用户可写位置，避免 sidecar 重建时丢失
+            import os as _os
+            dbase = Path(_os.environ.get("APPDATA", str(ROOT_DIR))) / "VoiceClone" / "data"
+        dbase.mkdir(parents=True, exist_ok=True)
         self._prompts_dir = dbase / "local_prompts"
         self._tts = None  # sherpa_onnx.OfflineTts, loaded lazily on first use
 
@@ -155,7 +175,7 @@ class LocalZipVoiceProvider(CloneProvider):
         # loudness_ratio / pitch_ratio unsupported locally: ignored on purpose.
         gen_config.speed = params.speed_ratio
 
-        sentences = _split_sentences(text)
+        sentences = _merge_short_sentences(_split_sentences(text), min_chars=15)
 
         def gen() -> AudioChunks:
             for sentence in sentences:
@@ -223,7 +243,12 @@ class LocalZipVoiceProvider(CloneProvider):
         import numpy as np
         import soundfile as sf
 
-        audio, sample_rate = sf.read(str(prompt_path), dtype="float32")
+        try:
+            audio, sample_rate = sf.read(str(prompt_path), dtype="float32")
+        except Exception as exc:
+            raise RuntimeError(
+                f"无法读取提示音频 {prompt_path.name}（可能已损坏），请重新训练该音色"
+            ) from exc
         if audio.ndim > 1:
             audio = audio[:, 0]  # first channel only
         sidecar = prompt_path.with_suffix(".txt")

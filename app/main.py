@@ -77,9 +77,29 @@ async def root() -> FileResponse:
     return FileResponse(STATIC_DIR / "index.html")
 
 
+# 管理页 index.html 以根路径引用静态资源（与 Tauri 内嵌前端根目录布局一致），
+# 浏览器/recorder 场景经 sidecar base_url 访问根路径同样要能命中。
+@app.get("/app.js", include_in_schema=False)
+async def app_js() -> FileResponse:
+    return FileResponse(STATIC_DIR / "app.js")
+
+
+@app.get("/style.css", include_in_schema=False)
+async def style_css() -> FileResponse:
+    return FileResponse(STATIC_DIR / "style.css")
+
+
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
 app.include_router(voices_router)
 app.include_router(tts_router)
 app.include_router(asr_router)
 app.include_router(capture_router)
+
+
+@app.on_event("startup")
+def _warmup_local_tts() -> None:
+    """后台线程预热本地 ZipVoice 模型，消除首句真声合成的 20~40s 冷加载。"""
+    from app.providers.factory import warmup_local_tts
+
+    warmup_local_tts()

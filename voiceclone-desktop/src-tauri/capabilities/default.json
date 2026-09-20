@@ -8,6 +8,10 @@
     "opener:default",
     "allow-start-capture",
     "allow-stop-capture",
-    "allow-sidecar-status"
+    "allow-sidecar-status",
+    "allow-fetch-get",
+    "allow-fetch-post",
+    "allow-speak",
+    "allow-api-upload"
   ]
 }

@@ -184,7 +184,7 @@ curl http://127.0.0.1:8021/health
 > 且云音色的 `local_prompt_path` 必须指向真实本地 prompt（含 `.txt` 侧车，由 API 建本地音色时生成）。
 
 ```bash
-# 1) 建一个真实本地音色（生成 prompt_slice.wav + 侧车 txt）
+# 1) 建一个真实本地音色（生成 prompt.wav + 侧车 txt，整段参考音频为 prompt）
 curl -s -X POST http://127.0.0.1:8021/api/v1/voices \
   -F "name=fb-base" -F "provider=local" -F "reference_text=参考文字稿" \
   -F "file=@/mnt/lei/gxy/voiceclone/models/zipvoice/test_wavs/leijun-1.wav" \

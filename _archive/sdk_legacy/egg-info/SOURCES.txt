@@ -1,0 +1,9 @@
+pyproject.toml
+tests/test_client.py
+vc/__init__.py
+vc/client.py
+voiceclone_sdk.egg-info/PKG-INFO
+voiceclone_sdk.egg-info/SOURCES.txt
+voiceclone_sdk.egg-info/dependency_links.txt
+voiceclone_sdk.egg-info/requires.txt
+voiceclone_sdk.egg-info/top_level.txt

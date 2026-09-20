@@ -15,7 +15,7 @@ name = "voiceclone_desktop_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]
-tauri-build = { version = "2", features = [] }
+tauri-build = { version = "2.1", features = [] }
 
 [dependencies]
 tauri = { version = "2", features = [] }
@@ -23,7 +23,15 @@ tauri-plugin-opener = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 # 仅本地 http://127.0.0.1 侧车通信，无需 TLS
-reqwest = { version = "0.12", default-features = false, features = ["json"] }
+reqwest = { version = "0.12", default-features = false, features = ["json", "multipart"] }
+base64 = "0.22"
+# 应用层错误处理：灵活上下文 + 自动 source 传播
+anyhow = "1"
+# 库级结构化错误（供 Tauri 命令 typed error 使用）
+thiserror = "2"
+# 日志
+log = "0.4"
+env_logger = "0.11"
 
 
 # Read the optimization guideline for more details: https://tauri.app/concept/size/#cargo-configuration
