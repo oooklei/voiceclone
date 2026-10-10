@@ -251,3 +251,15 @@ location /api/v1/tts/speak/stream {
 3. 长文本（>300 字或预计 >60s）自动按标点切片拼接；单次输入限 1-5000 字。
 4. 本地引擎不支持音量/音调调节（管理页对 local 音色禁用对应控件并标注"仅云端"）。
 5. 本机（Windows venv pip）与容器（python:3.12-slim manylinux wheel）安装差异：容器内 sherpa-onnx/onnxruntime 依赖 `libgomp1`（OpenMP）运行时库，Dockerfile 已用 apt 补装；本机 Windows 无需此步。
+## License
+
+Copyright (c) 2026 雷柏先 <oooklei@sohu.com>
+
+Dual-licensed:
+
+- **Non-commercial / open-source use**: GNU AGPLv3 (see [LICENSE](./LICENSE)).
+  If you run a modified version as a network service (SaaS), AGPLv3 §13
+  requires you to offer your corresponding source to users.
+- **Commercial / closed-source / SaaS use**: a paid commercial license.
+  See [LICENSE-COMMERCIAL.md](./LICENSE-COMMERCIAL.md),
+  contact <oooklei@sohu.com>.
