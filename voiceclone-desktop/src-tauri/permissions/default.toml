@@ -32,3 +32,9 @@ commands.allow = ["speak"]
 identifier = "allow-api-upload"
 description = "Allow api_upload command to forward file uploads to sidecar"
 commands.allow = ["api_upload"]
+
+[[permission]]
+identifier = "allow-save-audio-file"
+description = "Allow save_audio_file command to write synthesized wav into the Downloads folder"
+commands.allow = ["save_audio_file"]
+

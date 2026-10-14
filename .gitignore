@@ -27,6 +27,7 @@ scripts/deploy-verify.wav
 
 # Build artifacts
 dist/
+.build_cache
 
 # Installer packaging copy (duplicates dist/ PyInstaller bundle)
 setup/

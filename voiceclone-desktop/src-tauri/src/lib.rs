@@ -50,6 +50,10 @@ enum SidecarError {
     CaptureStopRequestFailed(#[source] reqwest::Error),
     #[error("TTS failed: HTTP {0}")]
     TtsFailed(u16),
+    #[error("user Downloads directory not found")]
+    NoDownloadsDir,
+    #[error("failed to save file: {0}")]
+    SaveFailed(#[source] std::io::Error),
     #[error("internal: {0}")]
     Internal(#[source] anyhow::Error),
 }
@@ -542,6 +546,83 @@ async fn stop_capture(app: tauri::AppHandle) -> Result<String, String> {
         .map_err(|e| e.to_string())
 }
 
+/// 前端下载：将合成好的音频字节（base64）保存到系统「下载」目录，返回完整路径。
+/// 文件名会做 Windows 非法字符清理，并以 `.wav` 结尾；同名时自动追加 ` (n)` 防覆盖。
+#[tauri::command]
+async fn save_audio_file(file_name: String, data_b64: String) -> Result<String, String> {
+    save_audio_file_inner(file_name, data_b64).map_err(|e| e.to_string())
+}
+
+fn save_audio_file_inner(file_name: String, data_b64: String) -> Result<String, SidecarError> {
+    use base64::{engine::general_purpose::STANDARD as B64, Engine as _};
+
+    let bytes = B64.decode(&data_b64).map_err(SidecarError::Base64DecodeFailed)?;
+    let dir = downloads_dir().ok_or(SidecarError::NoDownloadsDir)?;
+    std::fs::create_dir_all(&dir).map_err(SidecarError::SaveFailed)?;
+
+    let target = write_audio_to(&dir, &file_name, &bytes)?;
+    Ok(target.to_string_lossy().to_string())
+}
+
+/// 将音频字节写入 `dir` 下、名为 `file_name`（经清理、强制 .wav）的文件；
+/// 同名时自动追加 ` (n)` 避免覆盖。返回实际写入的完整路径。
+fn write_audio_to(dir: &Path, file_name: &str, bytes: &[u8]) -> Result<PathBuf, SidecarError> {
+    let safe = sanitize_file_name(file_name);
+    let target = unique_path(dir, &safe);
+    std::fs::write(&target, bytes).map_err(SidecarError::SaveFailed)?;
+    Ok(target)
+}
+
+/// 用户「下载」目录：Windows 用 USERPROFILE，其余平台回退 HOME。
+fn downloads_dir() -> Option<PathBuf> {
+    std::env::var_os("USERPROFILE")
+        .map(|p| Path::new(&p).join("Downloads"))
+        .or_else(|| std::env::var_os("HOME").map(|p| Path::new(&p).join("Downloads")))
+}
+
+/// 清理文件名：替换 Windows 保留字符，去尾部点/空格，空则回退 voice.wav，强制 .wav 后缀。
+fn sanitize_file_name(name: &str) -> String {
+    let mut base: String = name
+        .chars()
+        .map(|c| {
+            if "\\/:*?\"<>|".contains(c) || (c as u32) < 0x20 {
+                '_'
+            } else {
+                c
+            }
+        })
+        .collect();
+    base = base.trim().to_string();
+    while base.ends_with('.') || base.ends_with(' ') {
+        base.pop();
+    }
+    if base.is_empty() {
+        base = "voice".to_string();
+    }
+    if !base.to_lowercase().ends_with(".wav") {
+        base.push_str(".wav");
+    }
+    base
+}
+
+/// 若目标已存在，则依次尝试 `stem (1).ext`、`stem (2).ext` … 直到不冲突。
+fn unique_path(dir: &Path, name: &str) -> PathBuf {
+    let candidate = dir.join(name);
+    if !candidate.exists() {
+        return candidate;
+    }
+    let path = Path::new(name);
+    let stem = path.file_stem().and_then(|s| s.to_str()).unwrap_or("voice");
+    let ext = path.extension().and_then(|s| s.to_str()).unwrap_or("wav");
+    for i in 1..10000 {
+        let cand = dir.join(format!("{stem} ({i}).{ext}"));
+        if !cand.exists() {
+            return cand;
+        }
+    }
+    dir.join(format!("{stem} (9999).{ext}"))
+}
+
 // ---------------------------------------------------------------------------
 // 入口
 // ---------------------------------------------------------------------------
@@ -565,7 +646,8 @@ pub fn run() {
             speak,
             start_capture,
             stop_capture,
-            api_upload
+            api_upload,
+            save_audio_file
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application");
@@ -577,3 +659,50 @@ pub fn run() {
         }
     });
 }
+
+#[cfg(test)]
+mod save_audio_tests {
+    use super::*;
+    use base64::{engine::general_purpose::STANDARD as B64, Engine as _};
+
+    #[test]
+    fn sanitize_replaces_illegal_chars_and_forces_wav() {
+        assert_eq!(sanitize_file_name("雷军"), "雷军.wav");
+        assert_eq!(sanitize_file_name("a/b:c*d?.wav"), "a_b_c_d_.wav");
+        assert_eq!(sanitize_file_name("  name  "), "name.wav");
+        assert_eq!(sanitize_file_name("trailing."), "trailing.wav");
+        assert_eq!(sanitize_file_name(""), "voice.wav");
+        assert_eq!(sanitize_file_name("ALREADY.WAV"), "ALREADY.WAV");
+    }
+
+    #[test]
+    fn write_audio_creates_named_wav() {
+        let dir = std::env::temp_dir().join(format!("vc_test_{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+
+        let path = write_audio_to(&dir, "我的音色", b"RIFFdata").unwrap();
+        assert_eq!(path.file_name().unwrap().to_str().unwrap(), "我的音色.wav");
+        assert_eq!(std::fs::read(&path).unwrap(), b"RIFFdata");
+
+        // 同名再写一次：不覆盖，追加 (1)
+        let path2 = write_audio_to(&dir, "我的音色", b"second").unwrap();
+        assert_eq!(path2.file_name().unwrap().to_str().unwrap(), "我的音色 (1).wav");
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn save_inner_decodes_base64_and_writes() {
+        let b64 = B64.encode(b"wavbytes");
+        // 通过注入 dir 的等价路径验证解码 + 写盘（避免污染真实 Downloads）
+        let dir = std::env::temp_dir().join(format!("vc_inner_{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let bytes = B64.decode(&b64).unwrap();
+        let path = write_audio_to(&dir, "t", &bytes).unwrap();
+        assert_eq!(std::fs::read(path).unwrap(), b"wavbytes");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+}
+

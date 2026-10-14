@@ -21,6 +21,17 @@
       .replace(/'/g, "&#39;");
   }
 
+  // 生成安全的 WAV 文件名：以音色名 + ".wav"，剔除 Windows 非法字符，
+  // 去掉首尾空白及末尾的「. / 空格」（Windows 不允许文件名以这些结尾）。
+  function safeWavName(name) {
+    let base = String(name == null ? "" : name).trim();
+    base = base.replace(/[\\/:*?"<>|\u0000-\u001f]/g, "_");
+    base = base.replace(/[. ]+$/g, "").trim();
+    if (!base) base = "voice";
+    if (!/\.wav$/i.test(base)) base += ".wav";
+    return base;
+  }
+
   // ---------- 全局状态 ----------
   const State = {
     view: "home",                 // home | create | manage
@@ -232,6 +243,35 @@
     return r.blob();
   }
 
+  // 保存音频到本地：浏览器端走 <a download>（落到浏览器默认下载目录）；
+  // Tauri 端 WebView2 会静默吞掉 <a download>，改走 Rust 命令 save_audio_file
+  // 将字节写入系统「下载」目录，返回保存后的完整路径。
+  async function saveAudioBlob(blob, filename) {
+    if (vcIsTauri()) {
+      const bytes = new Uint8Array(await blob.arrayBuffer());
+      let binary = "";
+      const CHUNK = 0x8000;
+      for (let i = 0; i < bytes.length; i += CHUNK) {
+        binary += String.fromCharCode.apply(null, bytes.subarray(i, i + CHUNK));
+      }
+      const savedPath = await window.__TAURI_INTERNALS__.invoke("save_audio_file", {
+        fileName: filename,
+        dataB64: btoa(binary),
+      });
+      toast("已保存到：" + savedPath, "success");
+      return;
+    }
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(function () { URL.revokeObjectURL(url); }, 5000);
+    toast("已开始下载：" + filename, "success");
+  }
+
   // ---------- Toast ----------
   function toast(msg, type) {
     const box = $("toastContainer");
@@ -334,6 +374,7 @@
           "</div>" +
           '<div class="voice-actions">' +
             '<button type="button" class="btn-text" data-action="preview" data-id="' + escapeHtml(id) + '">试听</button>' +
+            '<button type="button" class="btn-text" data-action="download" data-id="' + escapeHtml(id) + '">下载</button>' +
             '<button type="button" class="btn-text" data-action="edit" data-id="' + escapeHtml(id) + '">编辑</button>' +
             '<button type="button" class="btn-text" data-action="retrain" data-id="' + escapeHtml(id) + '">重训</button>' +
             '<button type="button" class="btn-text danger" data-action="delete" data-id="' + escapeHtml(id) + '">删除</button>' +
@@ -1151,6 +1192,46 @@
     }
   }
 
+  // 管理页行内下载：用与「试听」相同的文本合成 wav，并以「音色名.wav」保存。
+  async function downloadVoiceById(id) {
+    if (!id) return;
+    const v = (State.voices || []).find(function (x) { return x && x.id === id; });
+    const filename = safeWavName(v && v.name ? v.name : ("voice-" + id));
+    const text = (els.previewText && els.previewText.value) || "你好，我是你的专属声音。";
+    if (!text.trim()) {
+      toast("请先输入试听文本", "warning");
+      return;
+    }
+    var btn = document.querySelector('.voice-item[data-id="' + id + '"] [data-action="download"]');
+    if (btn) { btn.textContent = "合成中…"; btn.disabled = true; }
+    const controller = new AbortController();
+    State.currentAbortController = controller;
+    const signal = controller.signal;
+    let timedOut = false;
+    const watchdog = setTimeout(function () {
+      if (State.currentAbortController === controller) {
+        timedOut = true;
+        State.currentAbortController.abort();
+      }
+    }, 120000);
+    try {
+      const blob = await apiAudio("/api/v1/tts/speak", { voice_id: id, text: text.trim() }, signal);
+      clearTimeout(watchdog);
+      if (signal.aborted) return;
+      await saveAudioBlob(blob, filename);
+    } catch (e) {
+      clearTimeout(watchdog);
+      if (e && e.name === "AbortError") {
+        if (!timedOut) toast("已取消下载", "info");
+        else toast("合成超时，已停止", "warning");
+      } else {
+        toast("下载失败：" + (e.message || e), "error");
+      }
+    } finally {
+      if (btn) { btn.textContent = "下载"; btn.disabled = false; }
+    }
+  }
+
   // ------------------------------------------------------------------
   // 入库（PATCH status=active）
   // ------------------------------------------------------------------
@@ -1307,6 +1388,8 @@
         }
       } else if (action === "preview") {
         previewVoiceById(id);
+      } else if (action === "download") {
+        downloadVoiceById(id);
       } else if (action === "edit") {
         editVoice(id);
       } else if (action === "delete") {

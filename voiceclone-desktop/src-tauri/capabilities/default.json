@@ -12,6 +12,7 @@
     "allow-fetch-get",
     "allow-fetch-post",
     "allow-speak",
-    "allow-api-upload"
+    "allow-api-upload",
+    "allow-save-audio-file"
   ]
 }

@@ -13,7 +13,7 @@ param(
 
 $ErrorActionPreference = "Stop"
 $Root = $PSScriptRoot
-$SidecarDir = "$Root\dist\sidecar"
+$SidecarDir = "$Root\dist"
 $TauriDir = "$Root\voiceclone-desktop\src-tauri"
 $StaticDir = "$Root\static"
 $CacheFile = "$Root\.build_cache"
@@ -21,7 +21,7 @@ $CacheFile = "$Root\.build_cache"
 # ---------- 工具函数 ----------
 function Get-FileHash($path) {
     if (-not (Test-Path $path)) { return "" }
-    (Get-FileHash $path -Algorithm MD5).Hash
+    (Microsoft.PowerShell.Utility\Get-FileHash $path -Algorithm MD5).Hash
 }
 
 function Get-DirHash($dir) {
